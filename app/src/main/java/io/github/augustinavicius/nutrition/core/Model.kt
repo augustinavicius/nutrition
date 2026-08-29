@@ -20,7 +20,7 @@ enum class MealType(val label: String) {
     }
 }
 
-enum class FoodSource { CUSTOM, OPEN_FOOD_FACTS }
+enum class FoodSource { CUSTOM, OPEN_FOOD_FACTS, RECIPE }
 
 /**
  * A food as the app knows it.

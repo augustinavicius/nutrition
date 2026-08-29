@@ -52,8 +52,10 @@ fun SearchScreen(
     date: LocalDate,
     onPickFood: (foodId: Long) -> Unit,
     onCreateFood: (prefillName: String?) -> Unit,
+    onCreateRecipe: () -> Unit,
     onScan: () -> Unit,
     bottomBar: @Composable () -> Unit,
+    pickIngredient: Boolean = false,
     viewModel: SearchViewModel = viewModel(factory = SearchViewModel.Factory),
 ) {
     val query by viewModel.query.collectAsStateWithLifecycle()
@@ -68,7 +70,7 @@ fun SearchScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Add food")
+                        Text(if (pickIngredient) "Pick an ingredient" else "Add food")
                         meal?.let {
                             Text(
                                 text = "${it.label} · ${Format.day(date)}",
@@ -79,13 +81,15 @@ fun SearchScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onScan) {
-                        Icon(painterResource(R.drawable.ic_barcode), contentDescription = "Scan a barcode")
+                    if (!pickIngredient) {
+                        IconButton(onClick = onScan) {
+                            Icon(painterResource(R.drawable.ic_barcode), contentDescription = "Scan a barcode")
+                        }
                     }
                 },
             )
         },
-        bottomBar = bottomBar,
+        bottomBar = { if (!pickIngredient) bottomBar() },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             OutlinedTextField(
@@ -110,19 +114,27 @@ fun SearchScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 32.dp),
             ) {
-                item("create") {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        TextButton(onClick = { onCreateFood(query.trim().takeIf { it.isNotEmpty() }) }) {
-                            Icon(Icons.Default.Add, contentDescription = null)
-                            Text(
-                                text = if (query.isBlank()) "Create a food" else "Create \"${query.trim()}\"",
-                                modifier = Modifier.padding(start = 8.dp),
-                            )
+                // Creating from inside a pick would nest one editor in another; the
+                // ingredient list is for choosing what already exists.
+                if (!pickIngredient) {
+                    item("create") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            TextButton(onClick = { onCreateFood(query.trim().takeIf { it.isNotEmpty() }) }) {
+                                Icon(Icons.Default.Add, contentDescription = null)
+                                Text(
+                                    text = if (query.isBlank()) "Create a food" else "Create \"${query.trim()}\"",
+                                    modifier = Modifier.padding(start = 8.dp),
+                                )
+                            }
+                            TextButton(onClick = onCreateRecipe) {
+                                Icon(Icons.Default.Add, contentDescription = null)
+                                Text("Create a recipe", modifier = Modifier.padding(start = 8.dp))
+                            }
                         }
                     }
                 }

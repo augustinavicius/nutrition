@@ -51,7 +51,10 @@ class FoodRepository(
             ?.id
             ?.takeIf { food.id == 0L }
         val toStore = if (existingId != null) food.copy(id = existingId) else food
-        return dao.upsert(toStore.toEntity())
+        // Room's upsert answers with the new rowId on insert and -1 on update; callers only
+        // ever want the id the food now lives under.
+        val rowId = dao.upsert(toStore.toEntity())
+        return if (rowId > 0) rowId else toStore.id
     }
 
     suspend fun delete(food: Food) = dao.delete(food.toEntity())

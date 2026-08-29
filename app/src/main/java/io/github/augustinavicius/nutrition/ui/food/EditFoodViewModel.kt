@@ -172,7 +172,7 @@ class EditFoodViewModel(
                     source = FoodSource.CUSTOM,
                 )
             )
-            _state.update { it.copy(savedId = if (id > 0) id else current.id, error = null) }
+            _state.update { it.copy(savedId = id, error = null) }
         }
     }
 

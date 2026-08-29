@@ -10,20 +10,75 @@ import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.execSQL
 
 @Database(
-    entities = [FoodEntity::class, DiaryEntryEntity::class],
-    version = 2,
+    entities = [
+        FoodEntity::class,
+        DiaryEntryEntity::class,
+        RecipeEntity::class,
+        RecipeIngredientEntity::class,
+    ],
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
 abstract class NutritionDatabase : RoomDatabase() {
     abstract fun foodDao(): FoodDao
     abstract fun diaryDao(): DiaryDao
+    abstract fun recipeDao(): RecipeDao
 
     companion object {
         fun build(context: Context): NutritionDatabase =
             Room.databaseBuilder(context, NutritionDatabase::class.java, "nutrition.db")
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
+    }
+}
+
+/** Recipes arrive; nothing existing changes. */
+internal val MIGRATION_2_3 = object : Migration(2, 3) {
+
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `recipes` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `name` TEXT NOT NULL,
+                `cookedGrams` REAL,
+                `foodId` INTEGER,
+                `createdAt` INTEGER NOT NULL,
+                `updatedAt` INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+        connection.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `recipe_ingredients` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `recipeId` INTEGER NOT NULL,
+                `foodId` INTEGER,
+                `name` TEXT NOT NULL,
+                `brand` TEXT,
+                `grams` REAL NOT NULL,
+                `n_kcal` REAL NOT NULL,
+                `n_protein` REAL NOT NULL,
+                `n_carbs` REAL NOT NULL,
+                `n_fat` REAL NOT NULL,
+                `n_fiber` REAL,
+                `n_sugar` REAL,
+                `n_sodiumMg` REAL,
+                `position` INTEGER NOT NULL,
+                FOREIGN KEY(`recipeId`) REFERENCES `recipes`(`id`)
+                    ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+        connection.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_recipe_ingredients_recipeId` " +
+                "ON `recipe_ingredients` (`recipeId`)"
+        )
+        connection.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_recipe_ingredients_foodId` " +
+                "ON `recipe_ingredients` (`foodId`)"
+        )
     }
 }
 

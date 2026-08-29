@@ -10,6 +10,9 @@ GitHub repository.
   typing doesn't hammer the network.
 - **Add** — create a food by hand with per-100 g figures, an optional barcode, and a sanity
   check against the energy its macros imply.
+- **Recipes** — build a dish from raw ingredients, weigh it once cooked, and log portions by
+  weight. Cooking changes what food weighs but not how much energy is in it, so spreading the
+  raw total over the cooked weight is what makes a serving come out right.
 - **Diary** — a day at a time, split by meal, with a calorie ring, macro bars against your
   goals, and a seven-day trend.
 - **Self-update** — signs in to GitHub, watches this repository's releases, and installs newer
@@ -150,12 +153,12 @@ by hand in [`AppContainer`](app/src/main/java/io/github/augustinavicius/nutritio
 one module and a handful of singletons don't justify a DI framework.
 
 ```
-core/      domain model: Nutrients, Food, DiaryEntry, Goals, formatting
+core/      domain model: Nutrients, Food, DiaryEntry, Recipe, Goals, formatting
 data/
   db/      Room entities, DAOs, the starter pantry
   off/     Open Food Facts client and mapping
   prefs/   DataStore settings, Keystore-encrypted secrets
-  repo/    FoodRepository, DiaryRepository
+  repo/    FoodRepository, DiaryRepository, RecipeRepository
 update/    GitHub API, device-flow auth, download, PackageInstaller, periodic check
 ui/        Compose screens, one package per screen, plus shared components
 ```
@@ -165,6 +168,10 @@ Two decisions worth knowing about:
 **Everything is grams.** Nutrients are stored per 100 g, the basis packaging and food databases
 already use, and a logged portion is a weight in grams scaled from that. There are no servings:
 one unit throughout means no conversion to get wrong and nothing to choose between when logging.
+
+**A saved recipe maintains an ordinary food.** Rather than teaching search, logging and the
+diary about dishes, a recipe writes its finished per-100 g figures into a `Food` row tagged
+`RECIPE`. Everything downstream treats a cooked dish exactly like anything else.
 
 **Diary entries snapshot the food they were logged from.** They hold the name and per-100 g
 nutrients rather than a foreign key, so correcting or deleting a food never rewrites what a

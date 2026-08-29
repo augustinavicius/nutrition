@@ -10,11 +10,13 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.toRoute
 import io.github.augustinavicius.nutrition.NutritionApp
 import io.github.augustinavicius.nutrition.core.Food
+import io.github.augustinavicius.nutrition.core.FoodSource
 import io.github.augustinavicius.nutrition.core.Format
 import io.github.augustinavicius.nutrition.core.MealType
 import io.github.augustinavicius.nutrition.core.Nutrients
 import io.github.augustinavicius.nutrition.data.repo.DiaryRepository
 import io.github.augustinavicius.nutrition.data.repo.FoodRepository
+import io.github.augustinavicius.nutrition.data.repo.RecipeRepository
 import io.github.augustinavicius.nutrition.ui.Routes
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,6 +40,8 @@ data class LogEntryUiState(
     val date: LocalDate = LocalDate.now(),
     val favorite: Boolean = false,
     val done: Boolean = false,
+    /** Set when this food is a cooked dish, so the recipe behind it can be opened. */
+    val recipeId: Long? = null,
 ) {
     /** The typed amount in grams, or null while the field is empty or unusable. */
     val grams: Double?
@@ -56,6 +60,7 @@ data class LogEntryUiState(
 class LogEntryViewModel(
     private val foods: FoodRepository,
     private val diary: DiaryRepository,
+    private val recipes: RecipeRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -107,6 +112,11 @@ class LogEntryViewModel(
                 ?: MealType.forHour(LocalTime.now().hour),
             date = LocalDate.ofEpochDay(route.dateEpochDay),
             favorite = food.favorite,
+            recipeId = if (food.source == FoodSource.RECIPE) {
+                recipes.recipeIdForFood(food.id)
+            } else {
+                null
+            },
         )
     }
 
@@ -164,6 +174,7 @@ class LogEntryViewModel(
                 LogEntryViewModel(
                     app.container.foodRepository,
                     app.container.diaryRepository,
+                    app.container.recipeRepository,
                     createSavedStateHandle(),
                 )
             }

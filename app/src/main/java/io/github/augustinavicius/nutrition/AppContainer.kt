@@ -8,6 +8,7 @@ import io.github.augustinavicius.nutrition.data.prefs.SecretStore
 import io.github.augustinavicius.nutrition.data.prefs.SettingsStore
 import io.github.augustinavicius.nutrition.data.repo.DiaryRepository
 import io.github.augustinavicius.nutrition.data.repo.FoodRepository
+import io.github.augustinavicius.nutrition.data.repo.RecipeRepository
 import io.github.augustinavicius.nutrition.update.ApkInstaller
 import io.github.augustinavicius.nutrition.update.GitHubApi
 import io.github.augustinavicius.nutrition.update.GitHubOAuthApi
@@ -44,6 +45,8 @@ class AppContainer(context: Context) {
     val foodRepository: FoodRepository by lazy { FoodRepository(database.foodDao(), offApi) }
 
     val diaryRepository: DiaryRepository by lazy { DiaryRepository(database.diaryDao(), foodRepository) }
+
+    val recipeRepository: RecipeRepository by lazy { RecipeRepository(database.recipeDao(), foodRepository) }
 
     val updateRepository: UpdateRepository by lazy {
         UpdateRepository(

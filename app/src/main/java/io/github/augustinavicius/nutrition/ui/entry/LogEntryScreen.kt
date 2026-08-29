@@ -62,6 +62,7 @@ import java.time.ZoneOffset
 fun LogEntryScreen(
     onDone: () -> Unit,
     onBack: () -> Unit,
+    onEditRecipe: (recipeId: Long) -> Unit = {},
     viewModel: LogEntryViewModel = viewModel(factory = LogEntryViewModel.Factory),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -79,6 +80,9 @@ fun LogEntryScreen(
                     }
                 },
                 actions = {
+                    state.recipeId?.let { recipeId ->
+                        TextButton(onClick = { onEditRecipe(recipeId) }) { Text("Recipe") }
+                    }
                     if (state.foodId != 0L && !state.editing) {
                         IconButton(onClick = viewModel::toggleFavorite) {
                             Icon(

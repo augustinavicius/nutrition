@@ -29,6 +29,7 @@ import io.github.augustinavicius.nutrition.core.MealType
 import io.github.augustinavicius.nutrition.ui.diary.DiaryScreen
 import io.github.augustinavicius.nutrition.ui.entry.LogEntryScreen
 import io.github.augustinavicius.nutrition.ui.food.EditFoodScreen
+import io.github.augustinavicius.nutrition.ui.recipe.RecipeEditScreen
 import io.github.augustinavicius.nutrition.ui.scan.ScanScreen
 import io.github.augustinavicius.nutrition.ui.search.SearchScreen
 import io.github.augustinavicius.nutrition.ui.settings.SettingsScreen
@@ -87,17 +88,27 @@ fun NutritionAppRoot(
                 meal = meal,
                 date = date,
                 onPickFood = { foodId ->
-                    navController.navigate(
-                        Routes.LogEntry(
-                            foodId = foodId,
-                            dateEpochDay = route.dateEpochDay,
-                            meal = route.meal,
+                    if (route.pickIngredient) {
+                        // Hand the choice back to the recipe being edited underneath.
+                        navController.previousBackStackEntry
+                            ?.savedStateHandle
+                            ?.set(Routes.PICKED_FOOD_ID, foodId)
+                        navController.popBackStack()
+                    } else {
+                        navController.navigate(
+                            Routes.LogEntry(
+                                foodId = foodId,
+                                dateEpochDay = route.dateEpochDay,
+                                meal = route.meal,
+                            )
                         )
-                    )
+                    }
                 },
                 onCreateFood = { prefill ->
                     navController.navigate(Routes.EditFood(prefillName = prefill))
                 },
+                onCreateRecipe = { navController.navigate(Routes.EditRecipe()) },
+                pickIngredient = route.pickIngredient,
                 onScan = { navController.navigate(Routes.Scan()) },
                 bottomBar = { BottomBar(navController) },
             )
@@ -134,6 +145,24 @@ fun NutritionAppRoot(
         composable<Routes.LogEntry> {
             LogEntryScreen(
                 onDone = { navController.popBackStack(Routes.Diary, inclusive = false) },
+                onBack = { navController.popBackStack() },
+                onEditRecipe = { recipeId -> navController.navigate(Routes.EditRecipe(recipeId)) },
+            )
+        }
+
+        composable<Routes.EditRecipe> { backStackEntry ->
+            val pickedFoodId by backStackEntry.savedStateHandle
+                .getStateFlow<Long?>(Routes.PICKED_FOOD_ID, null)
+                .collectAsStateWithLifecycle()
+
+            RecipeEditScreen(
+                onAddIngredient = { navController.navigate(Routes.Search(pickIngredient = true)) },
+                pickedFoodId = pickedFoodId,
+                onPickedFoodConsumed = {
+                    backStackEntry.savedStateHandle[Routes.PICKED_FOOD_ID] = null
+                },
+                onSaved = { navController.popBackStack() },
+                onDeleted = { navController.popBackStack() },
                 onBack = { navController.popBackStack() },
             )
         }

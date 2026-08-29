@@ -12,14 +12,21 @@ object Routes {
     /** Key the scanner writes a captured barcode into, on the caller's back-stack entry. */
     const val SCANNED_BARCODE = "scanned_barcode"
 
+    /** Key the search screen writes a chosen food's id into, when picking an ingredient. */
+    const val PICKED_FOOD_ID = "picked_food_id"
+
     @Serializable
     data object Diary
 
-    /** The search / add-food list. Carries the meal and day the result should be logged to. */
+    /**
+     * The search / add-food list. Carries the meal and day the result should be logged to,
+     * or, in [pickIngredient] mode, hands the chosen food back to a recipe being edited.
+     */
     @Serializable
     data class Search(
         val meal: String? = null,
         val dateEpochDay: Long = LocalDate.now().toEpochDay(),
+        val pickIngredient: Boolean = false,
     )
 
     /**
@@ -41,6 +48,10 @@ object Routes {
         val dateEpochDay: Long = LocalDate.now().toEpochDay(),
         val meal: String? = null,
     )
+
+    /** Create a recipe ([recipeId] == 0) or edit an existing one. */
+    @Serializable
+    data class EditRecipe(val recipeId: Long = 0)
 
     /** Create a food ([foodId] == 0) or edit an existing one. */
     @Serializable

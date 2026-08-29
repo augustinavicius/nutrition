@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
@@ -95,4 +96,41 @@ interface DiaryDao {
 
     @Query("DELETE FROM diary_entries WHERE id = :id")
     suspend fun deleteById(id: Long)
+}
+
+@Dao
+interface RecipeDao {
+
+    @Transaction
+    @Query("SELECT * FROM recipes WHERE id = :id")
+    suspend fun byId(id: Long): RecipeWithIngredients?
+
+    @Transaction
+    @Query("SELECT * FROM recipes ORDER BY updatedAt DESC")
+    fun observeAll(): Flow<List<RecipeWithIngredients>>
+
+    @Query("SELECT * FROM recipes WHERE foodId = :foodId LIMIT 1")
+    suspend fun byFoodId(foodId: Long): RecipeEntity?
+
+    @Upsert
+    suspend fun upsertRecipe(recipe: RecipeEntity): Long
+
+    @Query("UPDATE recipes SET foodId = :foodId WHERE id = :id")
+    suspend fun setFoodId(id: Long, foodId: Long)
+
+    @Query("DELETE FROM recipes WHERE id = :id")
+    suspend fun deleteRecipe(id: Long)
+
+    @Query("DELETE FROM recipe_ingredients WHERE recipeId = :recipeId")
+    suspend fun clearIngredients(recipeId: Long)
+
+    @Insert
+    suspend fun insertIngredients(ingredients: List<RecipeIngredientEntity>)
+
+    /** Ingredients are rewritten wholesale: the editor owns the whole list while it is open. */
+    @Transaction
+    suspend fun replaceIngredients(recipeId: Long, ingredients: List<RecipeIngredientEntity>) {
+        clearIngredients(recipeId)
+        insertIngredients(ingredients)
+    }
 }
