@@ -74,7 +74,20 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.APP_KEYSTORE_BASE64 }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          # Tolerate a value pasted with wrapping or stray whitespace, and say something
+          # useful if the secret holds anything other than the encoded keystore.
+          if ! printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/release.jks" 2>/dev/null; then
+            echo "::error::APP_KEYSTORE_BASE64 is not valid base64."
+            echo "It must hold the *contents* of the base64 file produced by"
+            echo "scripts/setup-release.sh — one long line — not a path to it."
+            exit 1
+          fi
+          if ! keytool -list -keystore "$RUNNER_TEMP/release.jks" \
+                -storepass "$APP_KEYSTORE_PASSWORD" -alias "$APP_KEY_ALIAS" >/dev/null 2>&1; then
+            echo "::error::The decoded keystore does not open with APP_KEYSTORE_PASSWORD / APP_KEY_ALIAS."
+            echo "Re-run scripts/setup-release.sh and re-upload all four signing secrets together."
+            exit 1
+          fi
           echo "APP_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
       - name: Work out the version
@@ -128,6 +141,18 @@ jobs:
           FINGERPRINT=$("$APKSIGNER" verify --print-certs \
             "dist/nutrition-${{ steps.version.outputs.name }}.apk" \
             | sed -n 's/.*certificate SHA-256 digest: //p' | head -n1)
+          # Guard against a silently debug-signed APK: if the build ever falls back, the
+          # release would install nowhere and could never update an existing install.
+          EXPECTED=$(keytool -list -v -keystore "$APP_KEYSTORE_FILE" -alias "$APP_KEY_ALIAS" \
+            -storepass "$APP_KEYSTORE_PASSWORD" | sed -n 's/.*SHA256: //p' | head -n1 \
+            | tr -d ':' | tr 'A-Z' 'a-z')
+          if [ "$FINGERPRINT" != "$EXPECTED" ]; then
+            echo "::error::The APK was not signed with the release keystore."
+            echo "  apk:      $FINGERPRINT"
+            echo "  keystore: $EXPECTED"
+            exit 1
+          fi
+
           echo "fingerprint=$FINGERPRINT" >> "$GITHUB_OUTPUT"
           echo "Signing certificate SHA-256: $FINGERPRINT"
           ls -la dist

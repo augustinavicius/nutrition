@@ -76,9 +76,23 @@ fi
 # --- 1. create or reuse the keystore ------------------------------------------------
 if [ -f "$KEYSTORE_PATH" ]; then
   echo "Using the existing keystore at $KEYSTORE_PATH."
+  echo "(This is the keystore password from when it was created — not your OAuth client id.)"
   read -r -s -p "Keystore password: " KEYSTORE_PASSWORD; echo
   read -r -s -p "Key password (blank to reuse the keystore password): " KEY_PASSWORD; echo
   KEY_PASSWORD="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+
+  # Check it before going any further. Without this a mistyped password is written
+  # straight into .env and the repository secrets, and only surfaces as a CI failure.
+  if ! "$KEYTOOL" -list -keystore "$KEYSTORE_PATH" -alias "$KEY_ALIAS" \
+        -storepass "$KEYSTORE_PASSWORD" >/dev/null 2>&1; then
+    echo >&2
+    echo "That password does not open $KEYSTORE_PATH (alias '$KEY_ALIAS')." >&2
+    echo "Nothing has been changed. Re-run with the right password, or delete the" >&2
+    echo "keystore to generate a fresh one — safe as long as no release has shipped" >&2
+    echo "with the old key." >&2
+    exit 1
+  fi
+  echo "Password accepted."
 else
   echo "Creating a new keystore at $KEYSTORE_PATH."
   KEYSTORE_PASSWORD="$(head -c 24 /dev/urandom | base64 | tr -d '/+=' | head -c 32)"
@@ -102,7 +116,9 @@ fi
 echo
 echo "Certificate fingerprint (this must never change between releases):"
 "$KEYTOOL" -list -v -keystore "$KEYSTORE_PATH" -alias "$KEY_ALIAS" -storepass "$KEYSTORE_PASSWORD" \
-  | grep -E "SHA256:" || true
+  > "$PWD/.keytool-out" 2>&1 || { cat "$PWD/.keytool-out" >&2; rm -f "$PWD/.keytool-out"; exit 1; }
+grep -E "SHA256:" "$PWD/.keytool-out" || true
+rm -f "$PWD/.keytool-out"
 
 # --- 2. record it in .env for local release builds ----------------------------------
 set_env_var APP_KEYSTORE_FILE "$KEYSTORE_PATH"

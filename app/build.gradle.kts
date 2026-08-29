@@ -42,7 +42,12 @@ val githubRepo = env("APP_GITHUB_REPO") ?: "nutrition"
 val githubClientId = env("APP_GITHUB_OAUTH_CLIENT_ID") ?: ""
 
 // Release signing. The keystore itself never enters the repository; only its path does.
-val keystoreFile = env("APP_KEYSTORE_FILE")
+// A relative path is resolved against the repository root, not this module — `.env` sits at
+// the root, so "release.jks" there means the one next to it.
+val keystoreFile = env("APP_KEYSTORE_FILE")?.let { path ->
+    val candidate = File(path)
+    if (candidate.isAbsolute) candidate else layout.settingsDirectory.file(path).asFile
+}
 val keystorePassword = env("APP_KEYSTORE_PASSWORD")
 val keystoreKeyAlias = env("APP_KEY_ALIAS")
 val keystoreKeyPassword = env("APP_KEY_PASSWORD")
@@ -66,9 +71,9 @@ android {
     }
 
     signingConfigs {
-        if (keystoreFile != null && file(keystoreFile).exists()) {
+        if (keystoreFile != null && keystoreFile.exists()) {
             create("release") {
-                storeFile = file(keystoreFile)
+                storeFile = keystoreFile
                 storePassword = keystorePassword
                 keyAlias = keystoreKeyAlias
                 keyPassword = keystoreKeyPassword
@@ -89,9 +94,25 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Fall back to debug signing locally so `assembleRelease` works without secrets;
-            // CI always provides a keystore, and updates require a stable signature.
-            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            // Falls back to debug signing so `assembleRelease` works on a fresh clone. That
+            // fallback is dangerous to ship — an update only installs when the signature
+            // matches — so say so loudly rather than producing a quietly useless APK.
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug").also {
+                logger.warn(
+                    buildString {
+                        append("\n**** Release builds will be DEBUG-SIGNED ****\n")
+                        if (keystoreFile == null) {
+                            append("APP_KEYSTORE_FILE is not set.\n")
+                        } else {
+                            append("APP_KEYSTORE_FILE points at ")
+                            append(keystoreFile.absolutePath)
+                            append(", which does not exist.\n")
+                        }
+                        append("Such an APK cannot update an installed release. ")
+                        append("Run ./scripts/setup-release.sh.\n")
+                    }
+                )
+            }
         }
     }
 
