@@ -25,19 +25,15 @@ enum class FoodSource { CUSTOM, OPEN_FOOD_FACTS }
 /**
  * A food as the app knows it.
  *
- * Nutrients are stored **per serving** rather than per 100 g, because that is the only
- * basis that is always well defined: foods bought by the piece (an egg, a protein bar)
- * may have no meaningful gram weight, while every food has a serving. When [servingGrams]
- * is known the per-100 g view is derived from it.
+ * Everything is measured in grams. Nutrients are stored per 100 g, which is how packaging and
+ * food databases state them, and any logged amount is scaled from that.
  */
 data class Food(
     val id: Long = 0,
     val name: String,
     val brand: String? = null,
     val barcode: String? = null,
-    val servingLabel: String,
-    val servingGrams: Double? = null,
-    val perServing: Nutrients,
+    val per100g: Nutrients,
     val source: FoodSource = FoodSource.CUSTOM,
     val imageUrl: String? = null,
     val favorite: Boolean = false,
@@ -46,8 +42,8 @@ data class Food(
 ) {
     val displayName: String get() = if (brand.isNullOrBlank()) name else "$name · $brand"
 
-    val per100g: Nutrients?
-        get() = servingGrams?.takeIf { it > 0 }?.let { perServing * (100.0 / it) }
+    /** Nutrients for [grams] of this food. */
+    fun forGrams(grams: Double): Nutrients = per100g * (grams / 100.0)
 }
 
 data class DiaryEntry(
@@ -57,18 +53,13 @@ data class DiaryEntry(
     val foodId: Long?,
     val name: String,
     val brand: String?,
-    val servings: Double,
-    val servingLabel: String,
-    val servingGrams: Double?,
-    val perServing: Nutrients,
+    val grams: Double,
+    val per100g: Nutrients,
     val createdAt: Long = System.currentTimeMillis(),
 ) {
-    val total: Nutrients get() = perServing * servings
+    val total: Nutrients get() = per100g * (grams / 100.0)
 
-    val grams: Double? get() = servingGrams?.let { it * servings }
-
-    val amountLabel: String
-        get() = grams?.let { "${Format.amount(it)} g" } ?: "${Format.amount(servings)} × $servingLabel"
+    val amountLabel: String get() = "${Format.amount(grams)} g"
 }
 
 /** Daily targets. Macro targets are in grams and may be left unset. */

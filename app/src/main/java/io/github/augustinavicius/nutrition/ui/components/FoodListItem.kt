@@ -86,14 +86,14 @@ fun FoodListItem(
             Text(
                 text = buildString {
                     food.brand?.takeIf { it.isNotBlank() }?.let { append(it).append(" · ") }
-                    append(food.servingLabel)
+                    append("per 100 g")
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            MacroSummaryText(food.perServing)
+            MacroSummaryText(food.per100g)
         }
 
         if (trailing != null) {
@@ -101,7 +101,7 @@ fun FoodListItem(
         } else {
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = Format.kcal(food.perServing.kcal),
+                    text = Format.kcal(food.per100g.kcal),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )

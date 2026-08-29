@@ -76,7 +76,7 @@ interface DiaryDao {
 
     @Query(
         """
-        SELECT date AS date, SUM(n_kcal * servings) AS kcal
+        SELECT date AS date, SUM(n_kcal * grams / 100.0) AS kcal
         FROM diary_entries
         WHERE date BETWEEN :from AND :to
         GROUP BY date

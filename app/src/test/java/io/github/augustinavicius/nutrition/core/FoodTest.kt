@@ -8,33 +8,26 @@ class FoodTest {
 
     private val bar = Food(
         name = "Protein bar",
-        servingLabel = "1 bar (60 g)",
-        servingGrams = 60.0,
-        perServing = Nutrients(kcal = 210.0, protein = 20.0, carbs = 21.0, fat = 6.0),
+        per100g = Nutrients(kcal = 350.0, protein = 33.3, carbs = 35.0, fat = 10.0),
     )
 
     @Test
-    fun `per 100 g is derived from the serving weight`() {
-        val per100 = bar.per100g!!
-        assertEquals(350.0, per100.kcal, 1e-9)
-        assertEquals(20.0 / 0.6, per100.protein, 1e-9)
+    fun `an arbitrary gram amount scales linearly`() {
+        assertEquals(210.0, bar.forGrams(60.0).kcal, 1e-9)
+        assertEquals(3.5, bar.forGrams(1.0).kcal, 1e-9)
+        assertEquals(350.0, bar.forGrams(100.0).kcal, 1e-9)
     }
 
     @Test
-    fun `optional nutrients survive the per 100 g conversion`() {
-        val withFibre = bar.copy(perServing = bar.perServing.copy(fiber = 3.0, sugar = null))
-        assertEquals(5.0, withFibre.per100g!!.fiber!!, 1e-9)
-        assertNull(withFibre.per100g!!.sugar)
+    fun `zero grams contributes nothing`() {
+        assertEquals(0.0, bar.forGrams(0.0).kcal, 1e-9)
     }
 
     @Test
-    fun `foods counted by the piece have no gram view`() {
-        assertNull(bar.copy(servingGrams = null).per100g)
-    }
-
-    @Test
-    fun `a zero serving weight is treated as unknown rather than dividing by zero`() {
-        assertNull(bar.copy(servingGrams = 0.0).per100g)
+    fun `optional nutrients survive scaling, and unknown ones stay unknown`() {
+        val withFibre = bar.copy(per100g = bar.per100g.copy(fiber = 6.0, sugar = null))
+        assertEquals(3.0, withFibre.forGrams(50.0).fiber!!, 1e-9)
+        assertNull(withFibre.forGrams(50.0).sugar)
     }
 
     @Test

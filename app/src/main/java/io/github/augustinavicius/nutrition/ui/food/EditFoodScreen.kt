@@ -23,9 +23,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -109,59 +106,13 @@ fun EditFoodScreen(
             )
 
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
-            Text("Serving", style = MaterialTheme.typography.titleSmall)
-
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = state.servingLabel,
-                    onValueChange = viewModel::setServingLabel,
-                    label = { Text("Serving name") },
-                    placeholder = { Text("1 bar") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1.4f),
-                )
-                OutlinedTextField(
-                    value = state.servingGramsText,
-                    onValueChange = viewModel::setServingGrams,
-                    label = { Text("Weight") },
-                    suffix = { Text("g") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            Text("Per 100 g", style = MaterialTheme.typography.titleSmall)
             Text(
-                text = if (state.basisSwitchable) {
-                    "Leave the weight blank for foods counted by the piece."
-                } else {
-                    "Without a weight this food can only be logged in whole servings."
-                },
+                text = "Enter the figures exactly as the packaging states them per 100 g. " +
+                    "Portions are weighed in grams when you log the food.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-
-            HorizontalDivider(Modifier.padding(vertical = 4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-                Text("Nutrition", style = MaterialTheme.typography.titleSmall)
-                if (state.basisSwitchable) {
-                    SingleChoiceSegmentedButtonRow {
-                        NutrientBasis.entries.forEachIndexed { index, basis ->
-                            SegmentedButton(
-                                selected = state.basis == basis,
-                                onClick = { viewModel.setBasis(basis) },
-                                shape = SegmentedButtonDefaults.itemShape(
-                                    index = index,
-                                    count = NutrientBasis.entries.size,
-                                ),
-                            ) { Text(if (basis == NutrientBasis.PER_100G) "100 g" else "serving") }
-                        }
-                    }
-                }
-            }
 
             NumberField(state.kcal, viewModel::setKcal, "Energy", "kcal", required = true)
             if (state.macroMismatch) {

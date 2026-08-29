@@ -80,7 +80,7 @@ class FoodRepository(
 
         val food = product?.toFood() ?: return BarcodeResult.Unknown(barcode)
 
-        return if (product.nutriments.hasAnyData && food.perServing.kcal > 0) {
+        return if (product.nutriments.hasAnyData && food.per100g.kcal > 0) {
             val id = save(food)
             BarcodeResult.Found(food.copy(id = id), fromCache = false)
         } else {
@@ -94,7 +94,7 @@ class FoodRepository(
         Result.success(
             response.products
                 .mapNotNull { it.toFood() }
-                .filter { it.perServing.kcal > 0 }
+                .filter { it.per100g.kcal > 0 }
                 .distinctBy { it.barcode }
         )
     } catch (e: IOException) {

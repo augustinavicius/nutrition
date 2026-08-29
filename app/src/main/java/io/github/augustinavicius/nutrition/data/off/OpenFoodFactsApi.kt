@@ -29,6 +29,6 @@ interface OpenFoodFactsApi {
         /** Asking for only what the app maps keeps responses small on mobile data. */
         const val FIELDS =
             "code,product_name,product_name_en,generic_name,brands,quantity," +
-                "serving_size,serving_quantity,image_front_small_url,image_small_url,nutriments"
+                "image_front_small_url,image_small_url,nutriments"
     }
 }

@@ -8,8 +8,8 @@ GitHub repository.
   the on-device cache; unknown ones are looked up in Open Food Facts and cached for next time.
 - **Search** — searches your own saved foods and Open Food Facts side by side, debounced so
   typing doesn't hammer the network.
-- **Add** — create a food by hand with per-serving or per-100 g figures, an optional barcode,
-  and a sanity check against the energy its macros imply.
+- **Add** — create a food by hand with per-100 g figures, an optional barcode, and a sanity
+  check against the energy its macros imply.
 - **Diary** — a day at a time, split by meal, with a calorie ring, macro bars against your
   goals, and a seven-day trend.
 - **Self-update** — signs in to GitHub, watches this repository's releases, and installs newer
@@ -162,13 +162,13 @@ ui/        Compose screens, one package per screen, plus shared components
 
 Two decisions worth knowing about:
 
-**Nutrients are stored per serving, not per 100 g.** A serving is the only basis that is always
-defined — a protein bar or an egg may have no meaningful gram weight. When a serving weight *is*
-known, the per-100 g view is derived from it.
+**Everything is grams.** Nutrients are stored per 100 g, the basis packaging and food databases
+already use, and a logged portion is a weight in grams scaled from that. There are no servings:
+one unit throughout means no conversion to get wrong and nothing to choose between when logging.
 
-**Diary entries snapshot the food they were logged from.** They hold the name, serving and
-per-serving nutrients rather than a foreign key, so correcting or deleting a food never
-rewrites what a past day says you ate.
+**Diary entries snapshot the food they were logged from.** They hold the name and per-100 g
+nutrients rather than a foreign key, so correcting or deleting a food never rewrites what a
+past day says you ate.
 
 ## Attribution
 

@@ -24,8 +24,6 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
 
-enum class AmountUnit { SERVING, GRAM }
-
 data class LogEntryUiState(
     val loading: Boolean = true,
     val notFound: Boolean = false,
@@ -34,45 +32,25 @@ data class LogEntryUiState(
     val name: String = "",
     val brand: String? = null,
     val imageUrl: String? = null,
-    val servingLabel: String = "serving",
-    val servingGrams: Double? = null,
-    val perServing: Nutrients = Nutrients(0.0, 0.0, 0.0, 0.0),
-    val amountText: String = "1",
-    val unit: AmountUnit = AmountUnit.SERVING,
+    val per100g: Nutrients = Nutrients(0.0, 0.0, 0.0, 0.0),
+    val gramsText: String = DEFAULT_GRAMS,
     val meal: MealType = MealType.SNACK,
     val date: LocalDate = LocalDate.now(),
     val favorite: Boolean = false,
     val done: Boolean = false,
 ) {
-    val gramsSupported: Boolean get() = (servingGrams ?: 0.0) > 0
+    /** The typed amount in grams, or null while the field is empty or unusable. */
+    val grams: Double?
+        get() = gramsText.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }
 
-    /** How many servings the typed amount represents, or null while the field is unusable. */
-    val servings: Double?
-        get() {
-            val amount = amountText.replace(',', '.').toDoubleOrNull() ?: return null
-            if (amount <= 0) return null
-            return when (unit) {
-                AmountUnit.SERVING -> amount
-                AmountUnit.GRAM -> servingGrams?.takeIf { it > 0 }?.let { amount / it }
-            }
-        }
+    val preview: Nutrients get() = per100g * ((grams ?: 0.0) / 100.0)
 
-    val preview: Nutrients get() = perServing * (servings ?: 0.0)
+    val canSave: Boolean get() = !loading && !notFound && grams != null
 
-    val canSave: Boolean get() = !loading && !notFound && servings != null
-
-    val amountSuffix: String
-        get() = when (unit) {
-            AmountUnit.GRAM -> "g"
-            AmountUnit.SERVING -> "× $servingLabel"
-        }
-
-    val secondaryAmountLabel: String?
-        get() = when {
-            !gramsSupported -> null
-            unit == AmountUnit.SERVING -> servings?.let { "${Format.amount(it * servingGrams!!)} g" }
-            else -> servings?.let { "${Format.amount(it)} × $servingLabel" }
-        }
+    companion object {
+        /** A portion, not a gram: nobody logs a single gram of anything. */
+        const val DEFAULT_GRAMS = "100"
+    }
 }
 
 class LogEntryViewModel(
@@ -98,22 +76,14 @@ class LogEntryViewModel(
             _state.update { it.copy(loading = false, notFound = true) }
             return
         }
-        val gramsBased = (entry.servingGrams ?: 0.0) > 0
         _state.value = LogEntryUiState(
             loading = false,
             editing = true,
             foodId = entry.foodId ?: 0,
             name = entry.name,
             brand = entry.brand,
-            servingLabel = entry.servingLabel,
-            servingGrams = entry.servingGrams,
-            perServing = entry.perServing,
-            unit = if (gramsBased) AmountUnit.GRAM else AmountUnit.SERVING,
-            amountText = if (gramsBased) {
-                Format.amount(entry.servings * entry.servingGrams!!)
-            } else {
-                Format.amount(entry.servings)
-            },
+            per100g = entry.per100g,
+            gramsText = Format.amount(entry.grams),
             meal = entry.meal,
             date = entry.date,
         )
@@ -125,7 +95,6 @@ class LogEntryViewModel(
             _state.update { it.copy(loading = false, notFound = true) }
             return
         }
-        val gramsBased = (food.servingGrams ?: 0.0) > 0
         _state.value = LogEntryUiState(
             loading = false,
             editing = false,
@@ -133,11 +102,7 @@ class LogEntryViewModel(
             name = food.name,
             brand = food.brand,
             imageUrl = food.imageUrl,
-            servingLabel = food.servingLabel,
-            servingGrams = food.servingGrams,
-            perServing = food.perServing,
-            unit = if (gramsBased) AmountUnit.GRAM else AmountUnit.SERVING,
-            amountText = if (gramsBased) Format.amount(food.servingGrams!!) else "1",
+            per100g = food.per100g,
             meal = route.meal?.let { runCatching { MealType.valueOf(it) }.getOrNull() }
                 ?: MealType.forHour(LocalTime.now().hour),
             date = LocalDate.ofEpochDay(route.dateEpochDay),
@@ -145,20 +110,7 @@ class LogEntryViewModel(
         )
     }
 
-    fun setAmount(text: String) = _state.update { it.copy(amountText = text) }
-
-    /** Switching units keeps the same real quantity so the numbers never jump. */
-    fun setUnit(unit: AmountUnit) = _state.update { current ->
-        if (unit == current.unit) return@update current
-        val servings = current.servings
-        val grams = current.servingGrams
-        val text = when {
-            servings == null || grams == null || grams <= 0 -> current.amountText
-            unit == AmountUnit.GRAM -> Format.amount(servings * grams)
-            else -> Format.amount(servings)
-        }
-        current.copy(unit = unit, amountText = text)
-    }
+    fun setGrams(text: String) = _state.update { it.copy(gramsText = text) }
 
     fun setMeal(meal: MealType) = _state.update { it.copy(meal = meal) }
 
@@ -174,17 +126,11 @@ class LogEntryViewModel(
 
     fun save() {
         val current = _state.value
-        val servings = current.servings ?: return
+        val grams = current.grams ?: return
         viewModelScope.launch {
             if (current.editing) {
                 diary.entry(route.entryId)?.let { existing ->
-                    diary.update(
-                        existing.copy(
-                            servings = servings,
-                            meal = current.meal,
-                            date = current.date,
-                        )
-                    )
+                    diary.update(existing.copy(grams = grams, meal = current.meal, date = current.date))
                 }
             } else {
                 diary.log(
@@ -192,11 +138,9 @@ class LogEntryViewModel(
                         id = current.foodId,
                         name = current.name,
                         brand = current.brand,
-                        servingLabel = current.servingLabel,
-                        servingGrams = current.servingGrams,
-                        perServing = current.perServing,
+                        per100g = current.per100g,
                     ),
-                    servings = servings,
+                    grams = grams,
                     meal = current.meal,
                     date = current.date,
                 )

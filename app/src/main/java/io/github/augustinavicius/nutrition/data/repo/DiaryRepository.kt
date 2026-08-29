@@ -23,8 +23,8 @@ class DiaryRepository(
 
     suspend fun entry(id: Long): DiaryEntry? = dao.byId(id)?.toDomain()
 
-    /** Logs [servings] of [food]; also bumps the food's usage counters so it ranks higher later. */
-    suspend fun log(food: Food, servings: Double, meal: MealType, date: LocalDate): Long {
+    /** Logs [grams] of [food]; also bumps the food's usage counters so it ranks higher later. */
+    suspend fun log(food: Food, grams: Double, meal: MealType, date: LocalDate): Long {
         val id = dao.insert(
             DiaryEntry(
                 date = date,
@@ -32,10 +32,8 @@ class DiaryRepository(
                 foodId = food.id.takeIf { it != 0L },
                 name = food.name,
                 brand = food.brand,
-                servings = servings,
-                servingLabel = food.servingLabel,
-                servingGrams = food.servingGrams,
-                perServing = food.perServing,
+                grams = grams,
+                per100g = food.per100g,
             ).toEntity()
         )
         food.id.takeIf { it != 0L }?.let { foods.markUsed(it) }

@@ -25,10 +25,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.augustinavicius.nutrition.core.Format
+import kotlin.math.roundToInt
 import io.github.augustinavicius.nutrition.core.Nutrients
 import io.github.augustinavicius.nutrition.ui.theme.CarbsColor
 import io.github.augustinavicius.nutrition.ui.theme.FatColor
@@ -160,12 +161,18 @@ fun MacroBar(
                 label,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            // Whole grams only: three of these sit side by side, and a macro read to two
+            // decimals is noise that pushes the label into wrapping.
+            val eaten = grams.roundToInt()
             Text(
-                text = goalGrams?.let { "${Format.amount(grams)} / $it g" } ?: Format.grams(grams),
+                text = goalGrams?.let { "$eaten / $it g" } ?: "$eaten g",
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Medium,
+                maxLines = 1,
             )
         }
         Box(

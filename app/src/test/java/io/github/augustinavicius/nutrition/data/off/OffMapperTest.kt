@@ -11,29 +11,11 @@ import org.junit.Test
 class OffMapperTest {
 
     @Test
-    fun `serving weight is read from free text serving sizes`() {
-        assertEquals(30.0, parseServingGrams("30 g")!!, EPSILON)
-        assertEquals(45.0, parseServingGrams("45g")!!, EPSILON)
-        assertEquals(12.5, parseServingGrams("12,5 g")!!, EPSILON)
-        // The useful number sits in the parenthetical, not the leading count.
-        assertEquals(240.0, parseServingGrams("1 cup (240 ml)")!!, EPSILON)
-    }
-
-    @Test
-    fun `unusable serving sizes yield no weight`() {
-        assertNull(parseServingGrams(null))
-        assertNull(parseServingGrams(""))
-        assertNull(parseServingGrams("1 slice"))
-        assertNull(parseServingGrams("0 g"))
-    }
-
-    @Test
-    fun `products map onto a per-serving basis`() {
+    fun `products map straight onto the per-100 g basis`() {
         val food = product(
             code = "3017620422003",
             name = "Nutella",
             brands = "Ferrero, Nutella",
-            servingSize = "15 g",
             nutriments = OffNutriments(
                 energyKcalRaw = JsonPrimitive(539),
                 proteinsRaw = JsonPrimitive(6.3),
@@ -44,43 +26,36 @@ class OffMapperTest {
             ),
         ).toFood()!!
 
-        assertEquals(15.0, food.servingGrams!!, EPSILON)
-        assertEquals(539 * 0.15, food.perServing.kcal, 1e-6)
-        assertEquals(539.0, food.per100g!!.kcal, 1e-6)
+        assertEquals(539.0, food.per100g.kcal, 1e-9)
+        assertEquals(6.3, food.per100g.protein, 1e-9)
         // Only the first brand is kept; the rest is crowd-sourced noise.
         assertEquals("Ferrero", food.brand)
         // OFF reports sodium in grams.
-        assertEquals(42.8 * 0.15, food.perServing.sodiumMg!!, 1e-6)
+        assertEquals(42.8, food.per100g.sodiumMg!!, 1e-6)
     }
 
     @Test
     fun `energy falls back to kilojoules when kcal is missing`() {
-        val food = product(
-            nutriments = OffNutriments(energyKjRaw = JsonPrimitive(2255)),
-        ).toFood()!!
-        assertEquals(2255 / 4.184, food.per100g!!.kcal, 1e-6)
+        val food = product(nutriments = OffNutriments(energyKjRaw = JsonPrimitive(2255))).toFood()!!
+        assertEquals(2255 / 4.184, food.per100g.kcal, 1e-6)
     }
 
     @Test
     fun `sodium falls back to salt using the standard ratio`() {
         val food = product(nutriments = OffNutriments(saltRaw = JsonPrimitive(0.107))).toFood()!!
-        assertEquals(42.8, food.per100g!!.sodiumMg!!, 1e-3)
+        assertEquals(42.8, food.per100g.sodiumMg!!, 1e-3)
     }
 
     @Test
     fun `numeric fields arrive as strings on some products`() {
-        val food = product(
-            servingQuantity = JsonPrimitive("30"),
-            nutriments = OffNutriments(energyKcalRaw = JsonPrimitive("250")),
-        ).toFood()!!
-        assertEquals(30.0, food.servingGrams!!, EPSILON)
-        assertEquals(75.0, food.perServing.kcal, 1e-6)
+        val food = product(nutriments = OffNutriments(energyKcalRaw = JsonPrimitive("250"))).toFood()!!
+        assertEquals(250.0, food.per100g.kcal, 1e-9)
     }
 
     @Test
     fun `non-numeric junk is treated as missing, not as an error`() {
         val food = product(nutriments = OffNutriments(energyKcalRaw = JsonPrimitive("unknown"))).toFood()!!
-        assertEquals(0.0, food.perServing.kcal, EPSILON)
+        assertEquals(0.0, food.per100g.kcal, 1e-9)
     }
 
     @Test
@@ -88,13 +63,6 @@ class OffMapperTest {
         assertNull(product(code = null).toFood())
         assertNull(product(name = null).toFood())
         assertNull(product(name = "   ").toFood())
-    }
-
-    @Test
-    fun `products with no declared serving default to 100 g`() {
-        val food = product(servingSize = null, servingQuantity = null).toFood()!!
-        assertEquals(100.0, food.servingGrams!!, EPSILON)
-        assertEquals("100 g", food.servingLabel)
     }
 
     @Test
@@ -129,9 +97,9 @@ class OffMapperTest {
         val food = response.product!!.toFood()
         assertNotNull(food)
         assertEquals("Yogurt Greek Style", food!!.name)
-        assertEquals(150.0, food.servingGrams!!, EPSILON)
-        assertEquals(96.1759082217972 * 1.5, food.perServing.kcal, 1e-6)
-        assertEquals(8.5, food.per100g!!.protein, 1e-6)
+        assertEquals(96.1759082217972, food.per100g.kcal, 1e-9)
+        assertEquals(8.5, food.per100g.protein, 1e-9)
+        // Serving fields are no longer requested or read, and must not break decoding.
         assertTrue(response.product.nutriments.hasAnyData)
     }
 
@@ -139,19 +107,6 @@ class OffMapperTest {
         code: String? = "1234567890123",
         name: String? = "Test food",
         brands: String? = null,
-        servingSize: String? = null,
-        servingQuantity: JsonPrimitive? = null,
         nutriments: OffNutriments = OffNutriments(),
-    ) = OffProduct(
-        code = code,
-        productName = name,
-        brands = brands,
-        servingSize = servingSize,
-        servingQuantityRaw = servingQuantity,
-        nutriments = nutriments,
-    )
-
-    private companion object {
-        const val EPSILON = 1e-9
-    }
+    ) = OffProduct(code = code, productName = name, brands = brands, nutriments = nutriments)
 }

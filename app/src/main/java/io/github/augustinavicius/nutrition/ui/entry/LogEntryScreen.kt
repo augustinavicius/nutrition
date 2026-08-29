@@ -30,9 +30,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -144,52 +141,23 @@ fun LogEntryScreen(
                             )
                         }
                         Text(
-                            text = "${Format.kcal(state.perServing.kcal)} kcal per ${state.servingLabel}",
+                            text = "${Format.kcal(state.per100g.kcal)} kcal per 100 g",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
 
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        OutlinedTextField(
-                            value = state.amountText,
-                            onValueChange = viewModel::setAmount,
-                            label = { Text("Amount") },
-                            suffix = { Text(state.amountSuffix) },
-                            singleLine = true,
-                            isError = state.servings == null && state.amountText.isNotBlank(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            modifier = Modifier.weight(1f),
-                        )
-
-                        if (state.gramsSupported) {
-                            SingleChoiceSegmentedButtonRow {
-                                SegmentedButton(
-                                    selected = state.unit == AmountUnit.GRAM,
-                                    onClick = { viewModel.setUnit(AmountUnit.GRAM) },
-                                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                                ) { Text("g") }
-                                SegmentedButton(
-                                    selected = state.unit == AmountUnit.SERVING,
-                                    onClick = { viewModel.setUnit(AmountUnit.SERVING) },
-                                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                                ) { Text("serv") }
-                            }
-                        }
-                    }
-                    state.secondaryAmountLabel?.let {
-                        Text(
-                            text = "= $it",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
+                OutlinedTextField(
+                    value = state.gramsText,
+                    onValueChange = viewModel::setGrams,
+                    label = { Text("Amount") },
+                    suffix = { Text("g") },
+                    singleLine = true,
+                    isError = state.grams == null && state.gramsText.isNotBlank(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                )
 
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Meal", style = MaterialTheme.typography.labelLarge)

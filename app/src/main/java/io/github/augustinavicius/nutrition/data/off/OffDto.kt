@@ -34,14 +34,11 @@ data class OffProduct(
     @SerialName("generic_name") val genericName: String? = null,
     val brands: String? = null,
     val quantity: String? = null,
-    @SerialName("serving_size") val servingSize: String? = null,
-    @SerialName("serving_quantity") val servingQuantityRaw: JsonPrimitive? = null,
     @SerialName("image_front_small_url") val imageFrontSmallUrl: String? = null,
     @SerialName("image_small_url") val imageSmallUrl: String? = null,
     val nutriments: OffNutriments = OffNutriments(),
 ) {
     val imageUrl: String? get() = imageFrontSmallUrl ?: imageSmallUrl
-    val servingQuantity: Double? get() = servingQuantityRaw.num()
 }
 
 @Serializable

@@ -38,9 +38,7 @@ data class FoodEntity(
     val name: String,
     val brand: String?,
     val barcode: String?,
-    val servingLabel: String,
-    val servingGrams: Double?,
-    @Embedded(prefix = "n_") val perServing: Nutrients,
+    @Embedded(prefix = "n_") val per100g: Nutrients,
     val source: FoodSource,
     val imageUrl: String?,
     val favorite: Boolean = false,
@@ -51,12 +49,12 @@ data class FoodEntity(
 )
 
 /**
- * A logged portion.
+ * A logged amount, in grams.
  *
- * Deliberately *not* a foreign key onto [FoodEntity]: the name, serving and per-serving
- * nutrients are snapshotted at log time so that correcting or deleting a food later never
- * silently rewrites what a past day says you ate. [foodId] is a soft link, kept only so
- * "log again" can find the original.
+ * Deliberately *not* a foreign key onto [FoodEntity]: the name and per-100 g nutrients are
+ * snapshotted at log time so that correcting or deleting a food later never silently rewrites
+ * what a past day says you ate. [foodId] is a soft link, kept only so "log again" can find
+ * the original.
  */
 @Entity(
     tableName = "diary_entries",
@@ -69,10 +67,8 @@ data class DiaryEntryEntity(
     val foodId: Long?,
     val name: String,
     val brand: String?,
-    val servings: Double,
-    val servingLabel: String,
-    val servingGrams: Double?,
-    @Embedded(prefix = "n_") val perServing: Nutrients,
+    val grams: Double,
+    @Embedded(prefix = "n_") val per100g: Nutrients,
     val createdAt: Long = System.currentTimeMillis(),
 )
 
@@ -81,9 +77,7 @@ fun FoodEntity.toDomain() = Food(
     name = name,
     brand = brand,
     barcode = barcode,
-    servingLabel = servingLabel,
-    servingGrams = servingGrams,
-    perServing = perServing,
+    per100g = per100g,
     source = source,
     imageUrl = imageUrl,
     favorite = favorite,
@@ -96,9 +90,7 @@ fun Food.toEntity(createdAt: Long = System.currentTimeMillis()) = FoodEntity(
     name = name.trim(),
     brand = brand?.trim()?.takeIf { it.isNotEmpty() },
     barcode = barcode?.trim()?.takeIf { it.isNotEmpty() },
-    servingLabel = servingLabel.trim().ifEmpty { "serving" },
-    servingGrams = servingGrams,
-    perServing = perServing,
+    per100g = per100g,
     source = source,
     imageUrl = imageUrl,
     favorite = favorite,
@@ -115,10 +107,8 @@ fun DiaryEntryEntity.toDomain() = DiaryEntry(
     foodId = foodId,
     name = name,
     brand = brand,
-    servings = servings,
-    servingLabel = servingLabel,
-    servingGrams = servingGrams,
-    perServing = perServing,
+    grams = grams,
+    per100g = per100g,
     createdAt = createdAt,
 )
 
@@ -129,9 +119,7 @@ fun DiaryEntry.toEntity() = DiaryEntryEntity(
     foodId = foodId,
     name = name,
     brand = brand,
-    servings = servings,
-    servingLabel = servingLabel,
-    servingGrams = servingGrams,
-    perServing = perServing,
+    grams = grams,
+    per100g = per100g,
     createdAt = createdAt,
 )
