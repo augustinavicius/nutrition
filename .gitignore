@@ -1,0 +1,20 @@
+# Gradle / build output
+.gradle/
+build/
+/captures/
+.cxx/
+
+# Local machine configuration and secrets
+local.properties
+.env
+
+# Signing material must never be committed: leaking it lets anyone publish an
+# "update" that installs over this app.
+*.jks
+*.keystore
+
+# IDE
+.idea/
+*.iml
+
+.DS_Store

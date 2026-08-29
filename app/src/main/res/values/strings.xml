@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Nutrition</string>
+
+    <string name="update_channel_name">App updates</string>
+    <string name="update_channel_description">Tells you when a newer build has been released.</string>
+    <string name="update_available_title">Update available</string>
+    <string name="update_available_text">%1$s is ready to install.</string>
+</resources>
