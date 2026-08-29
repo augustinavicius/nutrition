@@ -2,6 +2,7 @@ package io.github.augustinavicius.nutrition.ui.settings
 
 import android.content.Intent
 import androidx.core.net.toUri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -359,10 +360,15 @@ private fun UpdateStatusBlock(
     onAllowInstalls: () -> Unit,
 ) {
     when (val status = state.status) {
+        // A neutral container, like the other cards on this screen: buttons, text buttons and
+        // the progress bar all derive their colours from `surface`, so a primaryContainer
+        // behind them washes out — a disabled button especially, whose greys are onSurface
+        // alphas. The border carries the "something is waiting for you" signal instead.
         is UpdateStatus.Available -> Card(
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
@@ -404,7 +410,15 @@ private fun UpdateStatusBlock(
                         },
                         enabled = state.download == null && !state.installing,
                     ) {
-                        Text(if (state.downloadedApk != null) "Install" else "Download and install")
+                        // A disabled button still has to say what it is waiting for.
+                        Text(
+                            when {
+                                state.download != null -> "Downloading…"
+                                state.installing -> "Installing…"
+                                state.downloadedApk != null -> "Install"
+                                else -> "Download and install"
+                            }
+                        )
                     }
                     TextButton(onClick = viewModel::skipThisVersion) { Text("Skip") }
                 }
