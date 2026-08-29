@@ -43,6 +43,8 @@ class FoodRepository(
 
     suspend fun food(id: Long): Food? = dao.byId(id)?.toDomain()
 
+    suspend fun foodByBarcode(barcode: String): Food? = dao.byBarcode(barcode)?.toDomain()
+
     suspend fun save(food: Food): Long {
         val existingId = food.barcode
             ?.let { dao.byBarcode(it) }

@@ -9,6 +9,9 @@ import java.time.LocalDate
  */
 object Routes {
 
+    /** Key the scanner writes a captured barcode into, on the caller's back-stack entry. */
+    const val SCANNED_BARCODE = "scanned_barcode"
+
     @Serializable
     data object Diary
 
@@ -19,8 +22,13 @@ object Routes {
         val dateEpochDay: Long = LocalDate.now().toEpochDay(),
     )
 
+    /**
+      * The scanner. In [captureOnly] mode it hands the raw digits back to whoever opened it
+      * — the food editor filling in a barcode field — instead of resolving the product and
+      * navigating on.
+      */
     @Serializable
-    data object Scan
+    data class Scan(val captureOnly: Boolean = false)
 
     @Serializable
     data object Settings

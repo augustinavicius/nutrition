@@ -15,6 +15,7 @@ import io.github.augustinavicius.nutrition.core.Format
 import io.github.augustinavicius.nutrition.core.Nutrients
 import io.github.augustinavicius.nutrition.data.repo.FoodRepository
 import io.github.augustinavicius.nutrition.ui.Routes
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -39,6 +40,8 @@ data class EditFoodUiState(
     val savedId: Long? = null,
     val deleted: Boolean = false,
     val error: String? = null,
+    /** Name of a different saved food already using this barcode, if any. */
+    val barcodeOwner: String? = null,
 ) {
     val editing: Boolean get() = id != 0L
 
@@ -84,6 +87,8 @@ class EditFoodViewModel(
     private val _state = MutableStateFlow(EditFoodUiState())
     val state: StateFlow<EditFoodUiState> = _state.asStateFlow()
 
+    private var barcodeCheck: Job? = null
+
     init {
         viewModelScope.launch {
             val existing = route.foodId.takeIf { it != 0L }?.let { foods.food(it) }
@@ -97,6 +102,25 @@ class EditFoodViewModel(
                     barcode = route.barcode.orEmpty(),
                 )
             }
+            refreshBarcodeOwner()
+        }
+
+    }
+
+    /**
+     * Saving reuses the row a barcode already belongs to, so flag the collision rather than
+     * letting the user think they are creating something new.
+     */
+    private fun refreshBarcodeOwner() {
+        barcodeCheck?.cancel()
+        val barcode = _state.value.barcode.trim()
+        if (barcode.length < MIN_BARCODE_LENGTH) {
+            _state.update { it.copy(barcodeOwner = null) }
+            return
+        }
+        barcodeCheck = viewModelScope.launch {
+            val owner = foods.foodByBarcode(barcode)?.takeIf { it.id != _state.value.id }
+            _state.update { it.copy(barcodeOwner = owner?.name) }
         }
     }
 
@@ -117,7 +141,10 @@ class EditFoodViewModel(
 
     fun setName(value: String) = _state.update { it.copy(name = value) }
     fun setBrand(value: String) = _state.update { it.copy(brand = value) }
-    fun setBarcode(value: String) = _state.update { it.copy(barcode = value.filter(Char::isDigit)) }
+    fun setBarcode(value: String) {
+        _state.update { it.copy(barcode = value.filter(Char::isDigit)) }
+        refreshBarcodeOwner()
+    }
     fun setKcal(value: String) = _state.update { it.copy(kcal = value) }
     fun setProtein(value: String) = _state.update { it.copy(protein = value) }
     fun setCarbs(value: String) = _state.update { it.copy(carbs = value) }
@@ -161,6 +188,9 @@ class EditFoodViewModel(
     fun clearError() = _state.update { it.copy(error = null) }
 
     companion object {
+        /** EAN-8 is the shortest product code worth looking up. */
+        private const val MIN_BARCODE_LENGTH = 8
+
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as NutritionApp

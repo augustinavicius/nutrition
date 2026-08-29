@@ -81,6 +81,8 @@ fun ScanScreen(
     onFoodResolved: (foodId: Long) -> Unit,
     onNeedsFood: (barcode: String, name: String?, brand: String?) -> Unit,
     onClose: () -> Unit,
+    captureOnly: Boolean = false,
+    onBarcodeCaptured: (barcode: String) -> Unit = {},
     viewModel: ScanViewModel = viewModel(factory = ScanViewModel.Factory),
 ) {
     val context = LocalContext.current
@@ -95,6 +97,21 @@ fun ScanScreen(
     var permissionRequested by rememberSaveable { mutableStateOf(false) }
     var showManualEntry by rememberSaveable { mutableStateOf(false) }
     var cameraError by rememberSaveable { mutableStateOf<String?>(null) }
+
+    // In capture mode the caller only wants the digits, so hand them straight back rather
+    // than looking the product up. Guarded because the analyser can deliver another frame
+    // before the screen is popped.
+    var captured by remember { mutableStateOf(false) }
+    val handleBarcode: (String) -> Unit = { barcode ->
+        if (captureOnly) {
+            if (!captured) {
+                captured = true
+                onBarcodeCaptured(barcode)
+            }
+        } else {
+            viewModel.onBarcode(barcode)
+        }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -124,7 +141,7 @@ fun ScanScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Scan a barcode") },
+                title = { Text(if (captureOnly) "Scan the barcode" else "Scan a barcode") },
                 navigationIcon = {
                     IconButton(onClick = onClose) {
                         Icon(Icons.Default.Close, contentDescription = "Close scanner")
@@ -142,8 +159,8 @@ fun ScanScreen(
         Box(Modifier.fillMaxSize()) {
             when {
                 hasPermission -> CameraLayer(
-                    onBarcode = viewModel::onBarcode,
-                    enabled = state is ScanState.Scanning,
+                    onBarcode = handleBarcode,
+                    enabled = state is ScanState.Scanning && !captured,
                     onCameraUnavailable = { cameraError = it },
                 )
 
@@ -161,6 +178,11 @@ fun ScanScreen(
                 ScanOverlay(
                     modifier = Modifier.fillMaxSize().padding(padding),
                     state = state,
+                    hint = if (captureOnly) {
+                        "Point the camera at the barcode to fill it in"
+                    } else {
+                        "Point the camera at a product barcode"
+                    },
                     cameraError = cameraError,
                     onRetry = viewModel::resume,
                     onManualEntry = { showManualEntry = true },
@@ -174,7 +196,7 @@ fun ScanScreen(
             onDismiss = { showManualEntry = false },
             onSubmit = { code ->
                 showManualEntry = false
-                viewModel.onBarcode(code)
+                handleBarcode(code)
             },
         )
     }
@@ -284,6 +306,7 @@ private fun CameraLayer(
 private fun ScanOverlay(
     modifier: Modifier,
     state: ScanState,
+    hint: String,
     cameraError: String?,
     onRetry: () -> Unit,
     onManualEntry: () -> Unit,
@@ -312,7 +335,7 @@ private fun ScanOverlay(
             )
 
             state is ScanState.Scanning -> Text(
-                text = "Point the camera at a product barcode",
+                text = hint,
                 color = Color.White,
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodyMedium,

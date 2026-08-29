@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -72,7 +73,7 @@ fun NutritionAppRoot(
                         )
                     )
                 },
-                onScan = { navController.navigate(Routes.Scan) },
+                onScan = { navController.navigate(Routes.Scan()) },
                 bottomBar = { BottomBar(navController) },
             )
         }
@@ -97,26 +98,36 @@ fun NutritionAppRoot(
                 onCreateFood = { prefill ->
                     navController.navigate(Routes.EditFood(prefillName = prefill))
                 },
-                onScan = { navController.navigate(Routes.Scan) },
+                onScan = { navController.navigate(Routes.Scan()) },
                 bottomBar = { BottomBar(navController) },
             )
         }
 
-        composable<Routes.Scan> {
+        composable<Routes.Scan> { backStackEntry ->
+            val route = backStackEntry.toRoute<Routes.Scan>()
             ScanScreen(
                 onFoodResolved = { foodId ->
                     navController.navigate(Routes.LogEntry(foodId = foodId)) {
-                        popUpTo(Routes.Scan) { inclusive = true }
+                        popUpTo(Routes.Scan::class) { inclusive = true }
                     }
                 },
                 onNeedsFood = { barcode, name, brand ->
                     navController.navigate(
                         Routes.EditFood(barcode = barcode, prefillName = name, prefillBrand = brand)
                     ) {
-                        popUpTo(Routes.Scan) { inclusive = true }
+                        popUpTo(Routes.Scan::class) { inclusive = true }
                     }
                 },
                 onClose = { navController.popBackStack() },
+                captureOnly = route.captureOnly,
+                onBarcodeCaptured = { barcode ->
+                    // Hand the result to the screen that opened the scanner, which is still
+                    // sitting underneath with the user's half-filled form intact.
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set(Routes.SCANNED_BARCODE, barcode)
+                    navController.popBackStack()
+                },
             )
         }
 
@@ -129,7 +140,16 @@ fun NutritionAppRoot(
 
         composable<Routes.EditFood> { backStackEntry ->
             val route = backStackEntry.toRoute<Routes.EditFood>()
+            val scannedBarcode by backStackEntry.savedStateHandle
+                .getStateFlow<String?>(Routes.SCANNED_BARCODE, null)
+                .collectAsStateWithLifecycle()
+
             EditFoodScreen(
+                onScanBarcode = { navController.navigate(Routes.Scan(captureOnly = true)) },
+                scannedBarcode = scannedBarcode,
+                onScannedBarcodeConsumed = {
+                    backStackEntry.savedStateHandle[Routes.SCANNED_BARCODE] = null
+                },
                 onSaved = { foodId ->
                     // A brand new food goes straight to the log screen; editing an existing one
                     // just returns to wherever the user came from.

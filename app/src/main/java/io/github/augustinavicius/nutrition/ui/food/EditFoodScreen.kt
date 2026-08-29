@@ -33,15 +33,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.augustinavicius.nutrition.R
 import io.github.augustinavicius.nutrition.core.Format
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditFoodScreen(
+    onScanBarcode: () -> Unit,
+    scannedBarcode: String?,
+    onScannedBarcodeConsumed: () -> Unit,
     onSaved: (foodId: Long) -> Unit,
     onDeleted: () -> Unit,
     onBack: () -> Unit,
@@ -49,6 +54,15 @@ fun EditFoodScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
+
+    // The scanner hands its result back through the nav entry, leaving this half-filled
+    // form untouched underneath.
+    LaunchedEffect(scannedBarcode) {
+        scannedBarcode?.takeIf { it.isNotBlank() }?.let { code ->
+            viewModel.setBarcode(code)
+            onScannedBarcodeConsumed()
+        }
+    }
 
     LaunchedEffect(state.savedId) { state.savedId?.let(onSaved) }
     LaunchedEffect(state.deleted) { if (state.deleted) onDeleted() }
@@ -99,7 +113,26 @@ fun EditFoodScreen(
                 value = state.barcode,
                 onValueChange = viewModel::setBarcode,
                 label = { Text("Barcode (optional)") },
-                supportingText = { Text("Saved foods are found instantly when you scan this code.") },
+                supportingText = {
+                    if (state.barcodeOwner != null) {
+                        Text(
+                            text = "\"${state.barcodeOwner}\" already uses this barcode — " +
+                                "saving will update that food.",
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    } else {
+                        Text("Saved foods are found instantly when you scan this code.")
+                    }
+                },
+                trailingIcon = {
+                    IconButton(onClick = onScanBarcode) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_barcode),
+                            contentDescription = "Scan the barcode",
+                        )
+                    }
+                },
+                isError = state.barcodeOwner != null,
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
