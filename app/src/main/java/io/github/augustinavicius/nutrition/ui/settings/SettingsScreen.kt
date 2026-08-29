@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -270,7 +271,7 @@ private fun UpdatesSection(
         ) { Text("Check for updates") }
 
         if (state.status is UpdateStatus.Checking) {
-            CircularProgressIndicator(Modifier.height(20.dp), strokeWidth = 2.dp)
+            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
         }
     }
 
@@ -311,7 +312,7 @@ private fun SignInBlock(
                         OutlinedButton(onClick = viewModel::cancelSignIn) { Text("Cancel") }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(Modifier.height(16.dp), strokeWidth = 2.dp)
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.width(8.dp))
                         Text(
                             "Waiting for you to approve…",
@@ -321,8 +322,9 @@ private fun SignInBlock(
                 }
 
                 SignInStep.Starting -> Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(Modifier.height(16.dp), strokeWidth = 2.dp)
-                    Text("  Contacting GitHub…", style = MaterialTheme.typography.bodySmall)
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Contacting GitHub…", style = MaterialTheme.typography.bodySmall)
                 }
 
                 is SignInStep.Failed -> Text(
