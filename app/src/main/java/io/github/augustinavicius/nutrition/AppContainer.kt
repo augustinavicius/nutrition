@@ -9,6 +9,9 @@ import io.github.augustinavicius.nutrition.data.prefs.SettingsStore
 import io.github.augustinavicius.nutrition.data.repo.DiaryRepository
 import io.github.augustinavicius.nutrition.data.repo.FoodRepository
 import io.github.augustinavicius.nutrition.data.repo.RecipeRepository
+import io.github.augustinavicius.nutrition.sync.SyncJson
+import io.github.augustinavicius.nutrition.sync.SyncRepository
+import io.github.augustinavicius.nutrition.sync.WebDavClient
 import io.github.augustinavicius.nutrition.update.ApkInstaller
 import io.github.augustinavicius.nutrition.update.GitHubApi
 import io.github.augustinavicius.nutrition.update.GitHubOAuthApi
@@ -42,11 +45,27 @@ class AppContainer(context: Context) {
         SettingsStore(appContext, BuildConfig.GITHUB_OWNER, BuildConfig.GITHUB_REPO)
     }
 
-    val foodRepository: FoodRepository by lazy { FoodRepository(database.foodDao(), offApi) }
+    val foodRepository: FoodRepository by lazy {
+        FoodRepository(database.foodDao(), database.syncDao(), offApi)
+    }
 
     val diaryRepository: DiaryRepository by lazy { DiaryRepository(database.diaryDao(), foodRepository) }
 
-    val recipeRepository: RecipeRepository by lazy { RecipeRepository(database.recipeDao(), foodRepository) }
+    val recipeRepository: RecipeRepository by lazy {
+        RecipeRepository(database.recipeDao(), database.syncDao(), foodRepository)
+    }
+
+    val syncRepository: SyncRepository by lazy {
+        SyncRepository(
+            syncDao = database.syncDao(),
+            foodDao = database.foodDao(),
+            recipeDao = database.recipeDao(),
+            secrets = secretStore,
+            settings = settingsStore,
+            webdav = WebDavClient(Network.client),
+            json = SyncJson,
+        )
+    }
 
     val updateRepository: UpdateRepository by lazy {
         UpdateRepository(

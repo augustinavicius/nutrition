@@ -9,7 +9,9 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.augustinavicius.nutrition.BuildConfig
 import io.github.augustinavicius.nutrition.NutritionApp
 import io.github.augustinavicius.nutrition.core.Goals
+import io.github.augustinavicius.nutrition.data.prefs.SecretStore
 import io.github.augustinavicius.nutrition.data.prefs.SettingsStore
+import io.github.augustinavicius.nutrition.data.prefs.SyncSettings
 import io.github.augustinavicius.nutrition.data.prefs.UpdateSettings
 import io.github.augustinavicius.nutrition.update.ApkInstaller
 import io.github.augustinavicius.nutrition.update.GhDeviceCode
@@ -18,6 +20,8 @@ import io.github.augustinavicius.nutrition.update.InstallEvents
 import io.github.augustinavicius.nutrition.update.SignInStep
 import io.github.augustinavicius.nutrition.update.UpdateNotifications
 import io.github.augustinavicius.nutrition.update.UpdateRepository
+import io.github.augustinavicius.nutrition.sync.SyncOutcome
+import io.github.augustinavicius.nutrition.sync.SyncRepository
 import io.github.augustinavicius.nutrition.update.UpdateStatus
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -66,12 +70,20 @@ data class SettingsUiState(
     val installing: Boolean = false,
     val message: String? = null,
     val downloadedApk: File? = null,
-)
+    val sync: SyncSettings = SyncSettings(),
+    val syncPasswordSet: Boolean = false,
+    val syncing: Boolean = false,
+    val syncMessage: String? = null,
+) {
+    val syncReady: Boolean get() = sync.isConfigured && syncPasswordSet
+}
 
 class SettingsViewModel(
     private val settings: SettingsStore,
     private val updates: UpdateRepository,
     private val installer: ApkInstaller,
+    private val sync: SyncRepository,
+    private val secrets: io.github.augustinavicius.nutrition.data.prefs.SecretStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SettingsUiState())
@@ -96,6 +108,17 @@ class SettingsViewModel(
                     deviceFlowAvailable = updates.deviceFlowAvailable,
                     canInstallPackages = installer.canInstallPackages,
                 )
+            }
+        }
+
+        viewModelScope.launch {
+            settings.syncSettings.collect { stored ->
+                _state.update {
+                    it.copy(
+                        sync = stored,
+                        syncPasswordSet = !secrets.get(SecretStore.WEBDAV_PASSWORD).isNullOrBlank(),
+                    )
+                }
             }
         }
 
@@ -152,6 +175,45 @@ class SettingsViewModel(
     }
 
     fun unknownSourcesIntent() = installer.unknownSourcesSettingsIntent()
+
+    // ---------------------------------------------------------------- sync
+
+    fun setSyncServer(serverUrl: String, username: String, password: String, folder: String) {
+        viewModelScope.launch {
+            settings.setSyncServer(serverUrl, username, folder)
+            if (password.isNotBlank()) secrets.put(SecretStore.WEBDAV_PASSWORD, password)
+            _state.update {
+                it.copy(syncPasswordSet = !secrets.get(SecretStore.WEBDAV_PASSWORD).isNullOrBlank())
+            }
+        }
+    }
+
+    fun disconnectSync() {
+        viewModelScope.launch {
+            secrets.remove(SecretStore.WEBDAV_PASSWORD)
+            settings.setSyncServer("", "", "nutrition")
+            _state.update { it.copy(syncPasswordSet = false, syncMessage = "Sync disconnected.") }
+        }
+    }
+
+    fun syncNow() {
+        if (_state.value.syncing) return
+        viewModelScope.launch {
+            _state.update { it.copy(syncing = true, syncMessage = null) }
+            val message = when (val outcome = sync.sync()) {
+                SyncOutcome.NotConfigured -> "Add your server details first."
+                is SyncOutcome.Failed -> outcome.message
+                is SyncOutcome.Success -> if (outcome.pulled == 0) {
+                    "Already up to date — ${outcome.published} items."
+                } else {
+                    "Synced: ${outcome.pulled} change(s) pulled, ${outcome.published} items in the library."
+                }
+            }
+            _state.update { it.copy(syncing = false, syncMessage = message) }
+        }
+    }
+
+    fun dismissSyncMessage() = _state.update { it.copy(syncMessage = null) }
 
     // ---------------------------------------------------------------- sign in
 
@@ -279,6 +341,8 @@ class SettingsViewModel(
                     app.container.settingsStore,
                     app.container.updateRepository,
                     app.container.apkInstaller,
+                    app.container.syncRepository,
+                    app.container.secretStore,
                 )
             }
         }

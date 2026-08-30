@@ -1,5 +1,6 @@
 package io.github.augustinavicius.nutrition.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Index
@@ -20,6 +21,10 @@ class Converters {
     @TypeConverter fun nameToMeal(value: String): MealType =
         runCatching { MealType.valueOf(value) }.getOrDefault(MealType.SNACK)
 
+    @TypeConverter fun kindToName(value: SyncKind): String = value.name
+    @TypeConverter fun nameToKind(value: String): SyncKind =
+        runCatching { SyncKind.valueOf(value) }.getOrDefault(SyncKind.FOOD)
+
     @TypeConverter fun sourceToName(value: FoodSource): String = value.name
     @TypeConverter fun nameToSource(value: String): FoodSource =
         runCatching { FoodSource.valueOf(value) }.getOrDefault(FoodSource.CUSTOM)
@@ -28,6 +33,7 @@ class Converters {
 @Entity(
     tableName = "foods",
     indices = [
+        Index(value = ["uid"], unique = true),
         Index(value = ["barcode"], unique = true),
         Index(value = ["name"]),
         Index(value = ["lastUsedAt"]),
@@ -35,6 +41,12 @@ class Converters {
 )
 data class FoodEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /**
+     * Stable across devices, unlike the row id. Sync matches records on this.
+     * The empty default exists only so the column can be added by ALTER; every row the
+     * app writes carries a real one.
+     */
+    @ColumnInfo(defaultValue = "") val uid: String = newUid(),
     val name: String,
     val brand: String?,
     val barcode: String?,
@@ -72,8 +84,12 @@ data class DiaryEntryEntity(
     val createdAt: Long = System.currentTimeMillis(),
 )
 
+/** Random, not time-ordered: these only ever have to be unique, never comparable. */
+fun newUid(): String = java.util.UUID.randomUUID().toString()
+
 fun FoodEntity.toDomain() = Food(
     id = id,
+    uid = uid,
     name = name,
     brand = brand,
     barcode = barcode,
@@ -87,6 +103,7 @@ fun FoodEntity.toDomain() = Food(
 
 fun Food.toEntity(createdAt: Long = System.currentTimeMillis()) = FoodEntity(
     id = id,
+    uid = uid.ifBlank { newUid() },
     name = name.trim(),
     brand = brand?.trim()?.takeIf { it.isNotEmpty() },
     barcode = barcode?.trim()?.takeIf { it.isNotEmpty() },

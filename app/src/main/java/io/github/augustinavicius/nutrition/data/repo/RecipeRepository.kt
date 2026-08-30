@@ -4,7 +4,10 @@ import io.github.augustinavicius.nutrition.core.Food
 import io.github.augustinavicius.nutrition.core.FoodSource
 import io.github.augustinavicius.nutrition.core.Nutrients
 import io.github.augustinavicius.nutrition.core.Recipe
+import io.github.augustinavicius.nutrition.data.db.DeletionEntity
 import io.github.augustinavicius.nutrition.data.db.RecipeDao
+import io.github.augustinavicius.nutrition.data.db.SyncDao
+import io.github.augustinavicius.nutrition.data.db.SyncKind
 import io.github.augustinavicius.nutrition.data.db.toDomain
 import io.github.augustinavicius.nutrition.data.db.toEntity
 import kotlinx.coroutines.flow.Flow
@@ -19,6 +22,7 @@ import kotlinx.coroutines.flow.map
  */
 class RecipeRepository(
     private val dao: RecipeDao,
+    private val syncDao: SyncDao,
     private val foods: FoodRepository,
 ) {
 
@@ -59,5 +63,8 @@ class RecipeRepository(
         val existing = dao.byId(id) ?: return
         existing.recipe.foodId?.let { foodId -> foods.food(foodId)?.let { foods.delete(it) } }
         dao.deleteRecipe(id)
+        existing.recipe.uid.takeIf { it.isNotBlank() }?.let { uid ->
+            syncDao.recordDeletion(DeletionEntity(SyncKind.RECIPE, uid, System.currentTimeMillis()))
+        }
     }
 }

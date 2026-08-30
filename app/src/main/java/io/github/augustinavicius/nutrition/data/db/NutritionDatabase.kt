@@ -15,21 +15,54 @@ import androidx.sqlite.execSQL
         DiaryEntryEntity::class,
         RecipeEntity::class,
         RecipeIngredientEntity::class,
+        DeletionEntity::class,
     ],
-    version = 3,
-    exportSchema = false,
+    version = 4,
+    exportSchema = true,
 )
 @TypeConverters(Converters::class)
 abstract class NutritionDatabase : RoomDatabase() {
     abstract fun foodDao(): FoodDao
     abstract fun diaryDao(): DiaryDao
     abstract fun recipeDao(): RecipeDao
+    abstract fun syncDao(): SyncDao
 
     companion object {
         fun build(context: Context): NutritionDatabase =
             Room.databaseBuilder(context, NutritionDatabase::class.java, "nutrition.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
+    }
+}
+
+/**
+ * Records gain a uid that is stable across devices, and deletions start leaving tombstones,
+ * so a library can be synchronised. Existing rows are given uids in place.
+ */
+internal val MIGRATION_3_4 = object : Migration(3, 4) {
+
+    override fun migrate(connection: SQLiteConnection) {
+        listOf("foods", "recipes").forEach { table ->
+            connection.execSQL("ALTER TABLE `$table` ADD COLUMN `uid` TEXT NOT NULL DEFAULT ''")
+            // randomblob is evaluated per row, so every record gets its own value.
+            connection.execSQL(
+                "UPDATE `$table` SET `uid` = lower(hex(randomblob(16))) WHERE `uid` = ''"
+            )
+            connection.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_${table}_uid` ON `$table` (`uid`)"
+            )
+        }
+
+        connection.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `deletions` (
+                `kind` TEXT NOT NULL,
+                `uid` TEXT NOT NULL,
+                `deletedAt` INTEGER NOT NULL,
+                PRIMARY KEY(`kind`, `uid`)
+            )
+            """.trimIndent()
+        )
     }
 }
 

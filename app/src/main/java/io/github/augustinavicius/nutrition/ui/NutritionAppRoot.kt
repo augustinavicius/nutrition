@@ -147,6 +147,7 @@ fun NutritionAppRoot(
                 onDone = { navController.popBackStack(Routes.Diary, inclusive = false) },
                 onBack = { navController.popBackStack() },
                 onEditRecipe = { recipeId -> navController.navigate(Routes.EditRecipe(recipeId)) },
+                onEditFood = { foodId -> navController.navigate(Routes.EditFood(foodId = foodId)) },
             )
         }
 
@@ -190,7 +191,13 @@ fun NutritionAppRoot(
                         navController.popBackStack()
                     }
                 },
-                onDeleted = { navController.popBackStack() },
+                onDeleted = {
+                    // The screen underneath may be the log screen for the food just deleted,
+                    // which would sit there offering to log something that no longer exists.
+                    if (!navController.popBackStack(Routes.LogEntry::class, inclusive = true)) {
+                        navController.popBackStack()
+                    }
+                },
                 onBack = { navController.popBackStack() },
             )
         }

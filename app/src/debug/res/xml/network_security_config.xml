@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug builds only. Lets a WebDAV server be tried over plain HTTP on a development machine
+  or LAN. Release builds keep Android's default, which refuses cleartext: WebDAV sends its
+  credentials as Basic auth, so plain HTTP would put a password on the wire in the clear.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

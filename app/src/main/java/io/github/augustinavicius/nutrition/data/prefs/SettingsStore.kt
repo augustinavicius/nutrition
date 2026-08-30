@@ -24,6 +24,15 @@ data class UpdateSettings(
     val skippedVersionCode: Int = 0,
 )
 
+data class SyncSettings(
+    val serverUrl: String = "",
+    val username: String = "",
+    val folder: String = "nutrition",
+    val lastSyncedAt: Long = 0L,
+) {
+    val isConfigured: Boolean get() = serverUrl.isNotBlank() && username.isNotBlank()
+}
+
 class SettingsStore(context: Context, private val defaultOwner: String, private val defaultRepo: String) {
 
     private val store = context.applicationContext.dataStore
@@ -53,6 +62,24 @@ class SettingsStore(context: Context, private val defaultOwner: String, private 
             skippedVersionCode = prefs[KEY_SKIPPED_VERSION] ?: 0,
         )
     }
+
+    val syncSettings: Flow<SyncSettings> = store.data.map { prefs ->
+        SyncSettings(
+            serverUrl = prefs[KEY_SYNC_URL].orEmpty(),
+            username = prefs[KEY_SYNC_USER].orEmpty(),
+            folder = prefs[KEY_SYNC_FOLDER] ?: "nutrition",
+            lastSyncedAt = prefs[KEY_SYNC_LAST_AT] ?: 0L,
+        )
+    }
+
+    suspend fun setSyncServer(serverUrl: String, username: String, folder: String) =
+        store.edit { prefs ->
+            prefs[KEY_SYNC_URL] = serverUrl.trim()
+            prefs[KEY_SYNC_USER] = username.trim()
+            prefs[KEY_SYNC_FOLDER] = folder.trim().trim('/')
+        }
+
+    suspend fun setSyncLastAt(at: Long) = store.edit { it[KEY_SYNC_LAST_AT] = at }
 
     suspend fun setGoals(goals: Goals) {
         store.edit { prefs ->
@@ -86,5 +113,9 @@ class SettingsStore(context: Context, private val defaultOwner: String, private 
         val KEY_REPO = stringPreferencesKey("update_repo")
         val KEY_LAST_CHECKED = longPreferencesKey("update_last_checked")
         val KEY_SKIPPED_VERSION = intPreferencesKey("update_skipped_version")
+        val KEY_SYNC_URL = stringPreferencesKey("sync_url")
+        val KEY_SYNC_USER = stringPreferencesKey("sync_user")
+        val KEY_SYNC_FOLDER = stringPreferencesKey("sync_folder")
+        val KEY_SYNC_LAST_AT = longPreferencesKey("sync_last_at")
     }
 }

@@ -3,7 +3,10 @@ package io.github.augustinavicius.nutrition.data.repo
 import android.util.Log
 import io.github.augustinavicius.nutrition.core.Food
 import io.github.augustinavicius.nutrition.core.FoodSource
+import io.github.augustinavicius.nutrition.data.db.DeletionEntity
 import io.github.augustinavicius.nutrition.data.db.FoodDao
+import io.github.augustinavicius.nutrition.data.db.SyncDao
+import io.github.augustinavicius.nutrition.data.db.SyncKind
 import io.github.augustinavicius.nutrition.data.db.SeedFoods
 import io.github.augustinavicius.nutrition.data.db.toDomain
 import io.github.augustinavicius.nutrition.data.db.toEntity
@@ -30,6 +33,7 @@ sealed interface BarcodeResult {
 
 class FoodRepository(
     private val dao: FoodDao,
+    private val syncDao: SyncDao,
     private val api: OpenFoodFactsApi,
 ) {
 
@@ -57,7 +61,12 @@ class FoodRepository(
         return if (rowId > 0) rowId else toStore.id
     }
 
-    suspend fun delete(food: Food) = dao.delete(food.toEntity())
+    suspend fun delete(food: Food) {
+        dao.delete(food.toEntity())
+        food.uid.takeIf { it.isNotBlank() }?.let { uid ->
+            syncDao.recordDeletion(DeletionEntity(SyncKind.FOOD, uid, System.currentTimeMillis()))
+        }
+    }
 
     suspend fun markUsed(id: Long) = dao.markUsed(id)
 

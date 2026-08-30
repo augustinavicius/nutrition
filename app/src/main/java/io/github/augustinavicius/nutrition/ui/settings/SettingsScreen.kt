@@ -48,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -70,6 +71,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var showRepoDialog by rememberSaveable { mutableStateOf(false) }
+    var showSyncDialog by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.dismissUpdateNotification(context) }
 
@@ -77,6 +79,13 @@ fun SettingsScreen(
         state.message?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.dismissMessage()
+        }
+    }
+
+    LaunchedEffect(state.syncMessage) {
+        state.syncMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.dismissSyncMessage()
         }
     }
 
@@ -108,6 +117,15 @@ fun SettingsScreen(
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
+            SyncSection(
+                state = state,
+                onEditServer = { showSyncDialog = true },
+                onSyncNow = viewModel::syncNow,
+                onDisconnect = viewModel::disconnectSync,
+            )
+
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
             Text("About", style = MaterialTheme.typography.titleMedium)
             Text(
                 text = "Food data comes from Open Food Facts, an open database licensed under " +
@@ -120,6 +138,17 @@ fun SettingsScreen(
             }
             Spacer(Modifier.height(32.dp))
         }
+    }
+
+    if (showSyncDialog) {
+        SyncServerDialog(
+            settings = state.sync,
+            onDismiss = { showSyncDialog = false },
+            onSubmit = { url, user, password, folder ->
+                showSyncDialog = false
+                viewModel.setSyncServer(url, user, password, folder)
+            },
+        )
     }
 
     if (showRepoDialog) {
@@ -451,6 +480,125 @@ private fun UpdateStatusBlock(
 
         else -> Unit
     }
+}
+
+@Composable
+private fun SyncSection(
+    state: SettingsUiState,
+    onEditServer: () -> Unit,
+    onSyncNow: () -> Unit,
+    onDisconnect: () -> Unit,
+) {
+    Text("Sync library", style = MaterialTheme.typography.titleMedium)
+    Text(
+        text = "Keeps your foods and recipes on a WebDAV server you control — Nextcloud, " +
+            "ownCloud, or anything else that speaks it. The diary stays on this device.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+
+    if (!state.syncReady) {
+        Button(onClick = onEditServer) { Text("Set up sync") }
+        return
+    }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(state.sync.serverUrl, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = "${state.sync.username} · ${state.sync.folder}/library.json",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        TextButton(onClick = onEditServer) { Text("Change") }
+    }
+
+    if (state.sync.lastSyncedAt > 0) {
+        Text(
+            text = "Last synced ${
+                DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+                    .format(Date(state.sync.lastSyncedAt))
+            }",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        FilledTonalButton(onClick = onSyncNow, enabled = !state.syncing) { Text("Sync now") }
+        if (state.syncing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+        TextButton(onClick = onDisconnect) { Text("Disconnect") }
+    }
+}
+
+@Composable
+private fun SyncServerDialog(
+    settings: io.github.augustinavicius.nutrition.data.prefs.SyncSettings,
+    onDismiss: () -> Unit,
+    onSubmit: (url: String, user: String, password: String, folder: String) -> Unit,
+) {
+    var url by rememberSaveable { mutableStateOf(settings.serverUrl) }
+    var user by rememberSaveable { mutableStateOf(settings.username) }
+    var password by rememberSaveable { mutableStateOf("") }
+    var folder by rememberSaveable { mutableStateOf(settings.folder) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("WebDAV server") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    label = { Text("Server URL") },
+                    placeholder = { Text("https://cloud.example.com/remote.php/dav/files/you") },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = user,
+                    onValueChange = { user = it },
+                    label = { Text("Username") },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text(if (settings.isConfigured) "Password (blank to keep)" else "Password") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                )
+                OutlinedTextField(
+                    value = folder,
+                    onValueChange = { folder = it },
+                    label = { Text("Folder") },
+                    singleLine = true,
+                )
+                if (url.trim().startsWith("http://")) {
+                    Text(
+                        text = "Release builds refuse plain HTTP: WebDAV sends your password " +
+                            "with every request, so it needs https://.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                Text(
+                    text = "An app password is safer here than your account password, if your " +
+                        "server offers them. It is stored encrypted on this device.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSubmit(url, user, password, folder) },
+                enabled = url.isNotBlank() && user.isNotBlank() &&
+                    (password.isNotBlank() || settings.isConfigured),
+            ) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable

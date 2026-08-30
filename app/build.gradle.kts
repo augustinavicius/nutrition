@@ -142,6 +142,9 @@ kotlin {
 
 ksp {
     arg("room.generateKotlin", "true")
+    // Exported schemas are what migrations are written against, and what proves a migration
+    // produced exactly the shape Room expects.
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {

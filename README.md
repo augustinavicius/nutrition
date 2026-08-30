@@ -15,6 +15,8 @@ GitHub repository.
   raw total over the cooked weight is what makes a serving come out right.
 - **Diary** — a day at a time, split by meal, with a calorie ring, macro bars against your
   goals, and a seven-day trend.
+- **Sync** — keeps your foods and recipes on a WebDAV server you control, so a second device
+  starts with the library you have already built.
 - **Self-update** — signs in to GitHub, watches this repository's releases, and installs newer
   builds in place.
 
@@ -135,6 +137,40 @@ Every release after that one arrives through the app.
 Android requires an explicit per-app grant to install packages. The first time an update is
 ready the app offers an *Allow installs* button that opens the right settings screen.
 
+## Syncing the library
+
+Settings → **Sync library** takes a WebDAV server you run — Nextcloud, ownCloud, Apache
+`mod_dav`, `rclone serve webdav` — a username, a password and a folder. Nothing is hosted for
+you and no account is created anywhere; the data is a single file on your own server.
+
+```
+<folder>/library.json      every food and recipe, plus tombstones for deleted ones
+```
+
+The password is stored encrypted with an Android Keystore key, like the GitHub token, and is
+excluded from device backups. Prefer an app password if your server issues them.
+
+**HTTPS is required** in release builds. WebDAV authenticates with every request, so plain
+HTTP would put the password on the wire each time; Android's default cleartext policy blocks
+it and the app says so rather than failing obscurely. Debug builds allow cleartext for local
+testing.
+
+### What syncs, and how conflicts resolve
+
+Foods and recipes travel. **The diary stays on the device that recorded it** — what you ate on
+a given day is append-heavy, rarely edited, and much harder to merge than a library of
+definitions.
+
+Records carry a uid that is stable across devices, and merging is per record, newest edit
+winning. A deletion is just another timestamped fact: a tombstone newer than a record removes
+it, and a record newer than a tombstone brings it back, which is what re-adding a food on
+another device means. Ties go to the copy already on the server, so two devices merging the
+same pair of documents always reach the same answer.
+
+Writes are conditional on the version that was read (`If-Match`), so two devices syncing at
+once cannot silently overwrite each other; a rejected write re-reads, re-merges and tries
+again. Favourites and usage counts describe how one device is used and deliberately stay put.
+
 ### Release mechanics
 
 - `versionCode` is the workflow run number, which only ever increases — Android will not
@@ -159,6 +195,7 @@ data/
   off/     Open Food Facts client and mapping
   prefs/   DataStore settings, Keystore-encrypted secrets
   repo/    FoodRepository, DiaryRepository, RecipeRepository
+sync/      library document, merge, WebDAV client
 update/    GitHub API, device-flow auth, download, PackageInstaller, periodic check
 ui/        Compose screens, one package per screen, plus shared components
 ```

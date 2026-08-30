@@ -63,6 +63,7 @@ fun LogEntryScreen(
     onDone: () -> Unit,
     onBack: () -> Unit,
     onEditRecipe: (recipeId: Long) -> Unit = {},
+    onEditFood: (foodId: Long) -> Unit = {},
     viewModel: LogEntryViewModel = viewModel(factory = LogEntryViewModel.Factory),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -80,8 +81,12 @@ fun LogEntryScreen(
                     }
                 },
                 actions = {
-                    state.recipeId?.let { recipeId ->
-                        TextButton(onClick = { onEditRecipe(recipeId) }) { Text("Recipe") }
+                    // A food you can open is a food you can correct; without this there is no
+                    // way back into one once it exists.
+                    if (state.recipeId != null) {
+                        TextButton(onClick = { onEditRecipe(state.recipeId!!) }) { Text("Recipe") }
+                    } else if (state.foodId != 0L) {
+                        TextButton(onClick = { onEditFood(state.foodId) }) { Text("Edit") }
                     }
                     if (state.foodId != 0L && !state.editing) {
                         IconButton(onClick = viewModel::toggleFavorite) {

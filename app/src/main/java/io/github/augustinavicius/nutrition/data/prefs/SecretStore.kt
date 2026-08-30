@@ -79,6 +79,7 @@ class SecretStore(context: Context) {
 
     companion object {
         const val GITHUB_TOKEN = "github_token"
+        const val WEBDAV_PASSWORD = "webdav_password"
 
         private const val TAG = "SecretStore"
         private const val PREFS_NAME = "nutrition_secrets"
