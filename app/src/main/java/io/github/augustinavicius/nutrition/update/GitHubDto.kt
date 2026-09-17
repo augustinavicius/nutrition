@@ -28,16 +28,38 @@ data class GhRelease(
         get() = body?.let { BODY_VERSION_CODE.find(it)?.groupValues?.get(1)?.toIntOrNull() }
             ?: TRAILING_NUMBER.find(tagName)?.groupValues?.get(1)?.toIntOrNull()
 
-    /** Release notes with the machine-readable marker line stripped out. */
+    /**
+     * The channel this release was cut for.
+     *
+     * The workflow stamps `channel: <id>` into the body alongside the version marker. A
+     * release made by hand carries no marker, so GitHub's own pre-release flag decides:
+     * that is what the workflow sets the two apart with anyway.
+     */
+    val channel: UpdateChannel
+        get() = BODY_CHANNEL.find(body.orEmpty())?.groupValues?.get(1)
+            ?.let(UpdateChannel::fromId)
+            ?: if (prerelease) UpdateChannel.DEVELOPMENT else UpdateChannel.STABLE
+
+    /**
+     * Whether this release is offered to someone following [channel].
+     *
+     * Development follows everything: it is the channel for people who want the newest build,
+     * and a stable release is newer than the development one that preceded it.
+     */
+    fun isOn(followed: UpdateChannel): Boolean =
+        followed == UpdateChannel.DEVELOPMENT || channel == UpdateChannel.STABLE
+
+    /** Release notes with the machine-readable marker lines stripped out. */
     val notes: String
         get() = body.orEmpty().lineSequence()
-            .filterNot { BODY_VERSION_CODE.containsMatchIn(it) }
+            .filterNot { BODY_VERSION_CODE.containsMatchIn(it) || BODY_CHANNEL.containsMatchIn(it) }
             .joinToString("\n")
             .trim()
 }
 
-/** The release workflow stamps this marker into every release body. */
+/** The release workflow stamps these markers into every release body. */
 private val BODY_VERSION_CODE = Regex("""versionCode\s*[:=]\s*(\d+)""", RegexOption.IGNORE_CASE)
+private val BODY_CHANNEL = Regex("""channel\s*[:=]\s*([A-Za-z]+)""", RegexOption.IGNORE_CASE)
 private val TRAILING_NUMBER = Regex("""(\d+)\s*$""")
 
 @Serializable
@@ -47,31 +69,4 @@ data class GhAsset(
     val size: Long = 0,
     @SerialName("content_type") val contentType: String? = null,
     @SerialName("browser_download_url") val browserDownloadUrl: String? = null,
-)
-
-@Serializable
-data class GhUser(
-    val login: String = "",
-    val name: String? = null,
-)
-
-@Serializable
-data class GhDeviceCode(
-    @SerialName("device_code") val deviceCode: String = "",
-    @SerialName("user_code") val userCode: String = "",
-    @SerialName("verification_uri") val verificationUri: String = "https://github.com/login/device",
-    @SerialName("expires_in") val expiresIn: Int = 900,
-    val interval: Int = 5,
-    val error: String? = null,
-    @SerialName("error_description") val errorDescription: String? = null,
-)
-
-@Serializable
-data class GhAccessToken(
-    @SerialName("access_token") val accessToken: String? = null,
-    @SerialName("token_type") val tokenType: String? = null,
-    val scope: String? = null,
-    val error: String? = null,
-    @SerialName("error_description") val errorDescription: String? = null,
-    val interval: Int? = null,
 )

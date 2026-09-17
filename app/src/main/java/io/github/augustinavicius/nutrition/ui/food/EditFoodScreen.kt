@@ -2,7 +2,6 @@ package io.github.augustinavicius.nutrition.ui.food
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,7 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.augustinavicius.nutrition.R
-import io.github.augustinavicius.nutrition.core.Format
+import io.github.augustinavicius.nutrition.core.DecimalInput
+import io.github.augustinavicius.nutrition.ui.components.formWindowInsets
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +68,7 @@ fun EditFoodScreen(
     LaunchedEffect(state.deleted) { if (state.deleted) onDeleted() }
 
     Scaffold(
+        contentWindowInsets = formWindowInsets(),
         topBar = {
             TopAppBar(
                 title = { Text(if (state.editing) "Edit food" else "New food") },
@@ -148,25 +149,12 @@ fun EditFoodScreen(
             )
 
             NumberField(state.kcal, viewModel::setKcal, "Energy", "kcal", required = true)
-            if (state.macroMismatch) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "Macros add up to ${Format.kcal(state.macroKcal)} kcal.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.tertiary,
-                    )
-                    TextButton(onClick = viewModel::useMacroEnergy) { Text("Use that") }
-                }
-            }
-            NumberField(state.protein, viewModel::setProtein, "Protein", "g")
+            NumberField(state.fat, viewModel::setFat, "Fat", "g")
+            NumberField(state.satFat, viewModel::setSatFat, "of which saturates (optional)", "g")
             NumberField(state.carbs, viewModel::setCarbs, "Carbohydrate", "g")
             NumberField(state.sugar, viewModel::setSugar, "of which sugars (optional)", "g")
-            NumberField(state.fat, viewModel::setFat, "Fat", "g")
             NumberField(state.fiber, viewModel::setFiber, "Fibre (optional)", "g")
+            NumberField(state.protein, viewModel::setProtein, "Protein", "g")
             NumberField(state.sodiumMg, viewModel::setSodium, "Sodium (optional)", "mg")
 
             state.error?.let {
@@ -214,7 +202,7 @@ private fun NumberField(
         label = { Text(label) },
         suffix = { Text(suffix) },
         singleLine = true,
-        isError = required && value.replace(',', '.').toDoubleOrNull() == null,
+        isError = required && DecimalInput.parse(value) == null,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         modifier = Modifier.fillMaxWidth(),
     )

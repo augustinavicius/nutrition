@@ -8,6 +8,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
 import androidx.room.Upsert
+import io.github.augustinavicius.nutrition.core.MealType
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
@@ -74,6 +75,10 @@ interface DiaryDao {
 
     @Query("SELECT * FROM diary_entries WHERE id = :id")
     suspend fun byId(id: Long): DiaryEntryEntity?
+
+    /** The meal of the most recently logged entry; null until something has been logged. */
+    @Query("SELECT meal FROM diary_entries ORDER BY createdAt DESC LIMIT 1")
+    suspend fun lastLoggedMeal(): MealType?
 
     @Query(
         """

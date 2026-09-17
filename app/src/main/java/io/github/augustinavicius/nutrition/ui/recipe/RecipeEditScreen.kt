@@ -50,6 +50,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.augustinavicius.nutrition.core.Format
 import io.github.augustinavicius.nutrition.ui.components.NutrientTable
 import kotlin.math.roundToInt
+import io.github.augustinavicius.nutrition.ui.components.formWindowInsets
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,6 +76,7 @@ fun RecipeEditScreen(
     LaunchedEffect(state.deleted) { if (state.deleted) onDeleted() }
 
     Scaffold(
+        contentWindowInsets = formWindowInsets(),
         topBar = {
             TopAppBar(
                 title = { Text(if (state.editing) "Edit recipe" else "New recipe") },

@@ -4,7 +4,6 @@
 #   1. Creates the release signing keystore.
 #   2. Records its details in .env so local release builds work.
 #   3. Uploads the same values to GitHub Actions as repository secrets.
-#   4. Optionally records the OAuth client id the app needs to sign in to GitHub.
 #
 # Every release has to be signed with the same key: Android refuses to install an update
 # whose signature differs from the installed app, so rotating this key would strand every
@@ -76,8 +75,7 @@ fi
 # --- 1. create or reuse the keystore ------------------------------------------------
 if [ -f "$KEYSTORE_PATH" ]; then
   echo "Using the existing keystore at $KEYSTORE_PATH."
-  echo "(This is the keystore password from when it was created — not your OAuth client id.)"
-  read -r -s -p "Keystore password: " KEYSTORE_PASSWORD; echo
+    read -r -s -p "Keystore password: " KEYSTORE_PASSWORD; echo
   read -r -s -p "Key password (blank to reuse the keystore password): " KEY_PASSWORD; echo
   KEY_PASSWORD="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
 
@@ -128,26 +126,7 @@ set_env_var APP_KEY_PASSWORD "$KEY_PASSWORD"
 echo
 echo "Wrote the signing settings to $ENV_FILE (mode 600, gitignored)."
 
-# --- 3. the OAuth client id the app signs in with -----------------------------------
-CLIENT_ID="${APP_GITHUB_OAUTH_CLIENT_ID:-}"
-if [ -z "$CLIENT_ID" ]; then
-  cat <<'MSG'
-
-Signing in with GitHub is the only way the app can read a private repository's releases,
-and that needs a client id. See the README for the two options: a GitHub App with
-Contents: Read-only installed on this repository alone (recommended), or an OAuth app,
-which is quicker to set up but whose token can reach every repository you can.
-Either way, enable device flow and paste the client id below.
-The client id is not a secret — it is compiled into the APK.
-
-MSG
-  read -r -p "OAuth client id (leave blank to add it later): " CLIENT_ID
-fi
-if [ -n "$CLIENT_ID" ]; then
-  set_env_var APP_GITHUB_OAUTH_CLIENT_ID "$CLIENT_ID"
-fi
-
-# --- 4. hand the values to GitHub Actions -------------------------------------------
+# --- 3. hand the values to GitHub Actions -------------------------------------------
 KEYSTORE_BASE64="$(base64 -w0 "$KEYSTORE_PATH")"
 REPO_SLUG="${GH_REPO:-$(repo_slug || true)}"
 
@@ -163,12 +142,6 @@ if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
   printf '%s' "$KEYSTORE_PASSWORD" | gh secret set APP_KEYSTORE_PASSWORD --repo "$REPO_SLUG"
   printf '%s' "$KEY_ALIAS"         | gh secret set APP_KEY_ALIAS         --repo "$REPO_SLUG"
   printf '%s' "$KEY_PASSWORD"      | gh secret set APP_KEY_PASSWORD      --repo "$REPO_SLUG"
-  if [ -n "$CLIENT_ID" ]; then
-    printf '%s' "$CLIENT_ID" | gh secret set APP_GITHUB_OAUTH_CLIENT_ID --repo "$REPO_SLUG"
-  else
-    echo "No client id given — set it before pushing, or the release build will fail:"
-    echo "  gh secret set APP_GITHUB_OAUTH_CLIENT_ID --repo $REPO_SLUG"
-  fi
   echo "Done."
 else
   OUT_DIR="$(mktemp -d)"
@@ -182,7 +155,6 @@ The GitHub CLI is not available (or not signed in), so set these secrets by hand
   APP_KEYSTORE_PASSWORD       the keystore password shown above
   APP_KEY_ALIAS               $KEY_ALIAS
   APP_KEY_PASSWORD            the same password (unless you set a separate key password)
-  APP_GITHUB_OAUTH_CLIENT_ID  ${CLIENT_ID:-<your OAuth app client id>}
 
 Delete $OUT_DIR/APP_KEYSTORE_BASE64.txt once the secret is saved.
 To do it with the CLI instead: run 'gh auth login', then re-run this script.

@@ -37,10 +37,6 @@ val appVersionName = env("APP_VERSION_NAME") ?: "0.0.$appVersionCode-dev"
 val githubOwner = env("APP_GITHUB_OWNER") ?: "augustinavicius"
 val githubRepo = env("APP_GITHUB_REPO") ?: "nutrition"
 
-// Public OAuth-app client id used for GitHub device flow. Not a secret — it is compiled into
-// the APK — but without it the app has no way to reach a private repository's releases.
-val githubClientId = env("APP_GITHUB_OAUTH_CLIENT_ID") ?: ""
-
 // Release signing. The keystore itself never enters the repository; only its path does.
 // A relative path is resolved against the repository root, not this module — `.env` sits at
 // the root, so "release.jks" there means the one next to it.
@@ -67,7 +63,6 @@ android {
 
         buildConfigField("String", "GITHUB_OWNER", "\"$githubOwner\"")
         buildConfigField("String", "GITHUB_REPO", "\"$githubRepo\"")
-        buildConfigField("String", "GITHUB_OAUTH_CLIENT_ID", "\"$githubClientId\"")
     }
 
     signingConfigs {

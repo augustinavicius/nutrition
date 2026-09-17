@@ -9,6 +9,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.toRoute
 import io.github.augustinavicius.nutrition.NutritionApp
+import io.github.augustinavicius.nutrition.core.DecimalInput
 import io.github.augustinavicius.nutrition.core.Food
 import io.github.augustinavicius.nutrition.core.FoodSource
 import io.github.augustinavicius.nutrition.core.Format
@@ -45,7 +46,7 @@ data class LogEntryUiState(
 ) {
     /** The typed amount in grams, or null while the field is empty or unusable. */
     val grams: Double?
-        get() = gramsText.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }
+        get() = DecimalInput.parse(gramsText)?.takeIf { it > 0 }
 
     val preview: Nutrients get() = per100g * ((grams ?: 0.0) / 100.0)
 
@@ -108,7 +109,10 @@ class LogEntryViewModel(
             brand = food.brand,
             imageUrl = food.imageUrl,
             per100g = food.per100g,
+            // An explicit choice — the diary's "add to breakfast" — wins; otherwise carry on
+            // from whatever was logged last, falling back to the clock for an empty diary.
             meal = route.meal?.let { runCatching { MealType.valueOf(it) }.getOrNull() }
+                ?: diary.lastLoggedMeal()
                 ?: MealType.forHour(LocalTime.now().hour),
             date = LocalDate.ofEpochDay(route.dateEpochDay),
             favorite = food.favorite,
@@ -120,7 +124,7 @@ class LogEntryViewModel(
         )
     }
 
-    fun setGrams(text: String) = _state.update { it.copy(gramsText = text) }
+    fun setGrams(text: String) = _state.update { it.copy(gramsText = DecimalInput.sanitize(text)) }
 
     fun setMeal(meal: MealType) = _state.update { it.copy(meal = meal) }
 

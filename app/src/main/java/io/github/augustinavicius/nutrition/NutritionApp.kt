@@ -23,6 +23,7 @@ class NutritionApp : Application() {
         UpdateNotifications.ensureChannel(this)
 
         appScope.launch { container.foodRepository.ensureSeeded() }
+        forgetSyncCredentials()
 
         appScope.launch {
             container.settingsStore.updateSettings
@@ -36,5 +37,20 @@ class NutritionApp : Application() {
                     }
                 }
         }
+    }
+
+    /**
+     * Removes the encrypted store that held the WebDAV password and the old GitHub token.
+     *
+     * Nothing writes it any more, but an install that predates their removal still has the
+     * file sitting on disk. Deleting it is a one-off on the first launch after the upgrade;
+     * afterwards there is nothing to delete and this costs a stat call.
+     */
+    private fun forgetSyncCredentials() {
+        deleteSharedPreferences(LEGACY_SECRETS_PREFS)
+    }
+
+    private companion object {
+        const val LEGACY_SECRETS_PREFS = "nutrition_secrets"
     }
 }

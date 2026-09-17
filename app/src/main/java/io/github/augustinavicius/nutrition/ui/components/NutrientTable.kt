@@ -17,11 +17,12 @@ import io.github.augustinavicius.nutrition.core.Nutrients
 fun NutrientTable(nutrients: Nutrients, modifier: Modifier = Modifier) {
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         NutrientRow("Energy", "${Format.kcal(nutrients.kcal)} kcal", emphasise = true)
-        NutrientRow("Protein", Format.grams(nutrients.protein))
+        NutrientRow("Fat", Format.grams(nutrients.fat))
+        nutrients.satFat?.let { NutrientRow("of which saturates", Format.grams(it), indented = true) }
         NutrientRow("Carbohydrate", Format.grams(nutrients.carbs))
         nutrients.sugar?.let { NutrientRow("of which sugars", Format.grams(it), indented = true) }
-        NutrientRow("Fat", Format.grams(nutrients.fat))
         nutrients.fiber?.let { NutrientRow("Fibre", Format.grams(it)) }
+        NutrientRow("Protein", Format.grams(nutrients.protein))
         nutrients.sodiumMg?.let { NutrientRow("Sodium", Format.milligrams(it)) }
     }
 }

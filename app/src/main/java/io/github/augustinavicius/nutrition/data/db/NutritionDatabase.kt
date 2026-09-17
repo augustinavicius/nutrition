@@ -15,9 +15,8 @@ import androidx.sqlite.execSQL
         DiaryEntryEntity::class,
         RecipeEntity::class,
         RecipeIngredientEntity::class,
-        DeletionEntity::class,
     ],
-    version = 4,
+    version = 6,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -25,13 +24,109 @@ abstract class NutritionDatabase : RoomDatabase() {
     abstract fun foodDao(): FoodDao
     abstract fun diaryDao(): DiaryDao
     abstract fun recipeDao(): RecipeDao
-    abstract fun syncDao(): SyncDao
 
     companion object {
         fun build(context: Context): NutritionDatabase =
             Room.databaseBuilder(context, NutritionDatabase::class.java, "nutrition.db")
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build()
+    }
+}
+
+/**
+ * Sync is gone, and so is everything that existed only to serve it.
+ *
+ * The `deletions` tombstones had no reader once nothing synchronises, and would have grown
+ * without bound. The `uid` columns were how a server matched a record across devices; row ids
+ * are identity again. Both tables are rebuilt rather than altered, because dropping a column
+ * needs SQLite 3.35 and minSdk 26 ships older ones. Row ids are carried across unchanged, so
+ * `recipe_ingredients.recipeId` and `foods.id` keep pointing where they did.
+ */
+internal val MIGRATION_5_6 = object : Migration(5, 6) {
+
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("DROP TABLE IF EXISTS `deletions`")
+
+        connection.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `foods_new` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `name` TEXT NOT NULL,
+                `brand` TEXT,
+                `barcode` TEXT,
+                `source` TEXT NOT NULL,
+                `imageUrl` TEXT,
+                `favorite` INTEGER NOT NULL,
+                `lastUsedAt` INTEGER,
+                `useCount` INTEGER NOT NULL,
+                `createdAt` INTEGER NOT NULL,
+                `updatedAt` INTEGER NOT NULL,
+                `n_kcal` REAL NOT NULL,
+                `n_protein` REAL NOT NULL,
+                `n_carbs` REAL NOT NULL,
+                `n_fat` REAL NOT NULL,
+                `n_satFat` REAL,
+                `n_fiber` REAL,
+                `n_sugar` REAL,
+                `n_sodiumMg` REAL
+            )
+            """.trimIndent()
+        )
+        connection.execSQL(
+            """
+            INSERT INTO `foods_new` (
+                id, name, brand, barcode, source, imageUrl, favorite, lastUsedAt, useCount,
+                createdAt, updatedAt,
+                n_kcal, n_protein, n_carbs, n_fat, n_satFat, n_fiber, n_sugar, n_sodiumMg
+            )
+            SELECT
+                id, name, brand, barcode, source, imageUrl, favorite, lastUsedAt, useCount,
+                createdAt, updatedAt,
+                n_kcal, n_protein, n_carbs, n_fat, n_satFat, n_fiber, n_sugar, n_sodiumMg
+            FROM `foods`
+            """.trimIndent()
+        )
+        connection.execSQL("DROP TABLE `foods`")
+        connection.execSQL("ALTER TABLE `foods_new` RENAME TO `foods`")
+        connection.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_foods_barcode` ON `foods` (`barcode`)")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS `index_foods_name` ON `foods` (`name`)")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS `index_foods_lastUsedAt` ON `foods` (`lastUsedAt`)")
+
+        connection.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `recipes_new` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `name` TEXT NOT NULL,
+                `cookedGrams` REAL,
+                `foodId` INTEGER,
+                `createdAt` INTEGER NOT NULL,
+                `updatedAt` INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+        connection.execSQL(
+            """
+            INSERT INTO `recipes_new` (id, name, cookedGrams, foodId, createdAt, updatedAt)
+            SELECT id, name, cookedGrams, foodId, createdAt, updatedAt FROM `recipes`
+            """.trimIndent()
+        )
+        connection.execSQL("DROP TABLE `recipes`")
+        connection.execSQL("ALTER TABLE `recipes_new` RENAME TO `recipes`")
+    }
+}
+
+/**
+ * Saturated fat joins the nutrient bundle, wherever that bundle is embedded.
+ *
+ * Existing rows are left null rather than zero: nothing in the library was ever asked for a
+ * saturates figure, and null is how this app says "not reported" for an optional nutrient.
+ */
+internal val MIGRATION_4_5 = object : Migration(4, 5) {
+
+    override fun migrate(connection: SQLiteConnection) {
+        listOf("foods", "diary_entries", "recipe_ingredients").forEach { table ->
+            connection.execSQL("ALTER TABLE `$table` ADD COLUMN `n_satFat` REAL")
+        }
     }
 }
 

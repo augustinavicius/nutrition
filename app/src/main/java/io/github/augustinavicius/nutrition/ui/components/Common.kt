@@ -5,15 +5,19 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -34,6 +38,16 @@ import io.github.augustinavicius.nutrition.core.Nutrients
 import io.github.augustinavicius.nutrition.ui.theme.CarbsColor
 import io.github.augustinavicius.nutrition.ui.theme.FatColor
 import io.github.augustinavicius.nutrition.ui.theme.ProteinColor
+
+/**
+ * The window insets a form should sit inside: the system bars, plus the keyboard when it is up.
+ *
+ * `enableEdgeToEdge` means the window is no longer resized for the IME — it arrives as an inset
+ * instead — so without this the keyboard is drawn over the last fields on the screen. Taking the
+ * union rather than the sum keeps the navigation bar from being counted twice while typing.
+ */
+@Composable
+fun formWindowInsets(): WindowInsets = ScaffoldDefaults.contentWindowInsets.union(WindowInsets.ime)
 
 @Composable
 fun SectionHeader(

@@ -9,6 +9,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.toRoute
 import io.github.augustinavicius.nutrition.NutritionApp
+import io.github.augustinavicius.nutrition.core.DecimalInput
 import io.github.augustinavicius.nutrition.core.Food
 import io.github.augustinavicius.nutrition.core.FoodSource
 import io.github.augustinavicius.nutrition.core.Format
@@ -21,7 +22,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlin.math.abs
 
 /** Every field is per 100 g, which is how packaging and food databases state nutrition. */
 data class EditFoodUiState(
@@ -34,6 +34,7 @@ data class EditFoodUiState(
     val protein: String = "",
     val carbs: String = "",
     val fat: String = "",
+    val satFat: String = "",
     val fiber: String = "",
     val sugar: String = "",
     val sodiumMg: String = "",
@@ -45,15 +46,14 @@ data class EditFoodUiState(
 ) {
     val editing: Boolean get() = id != 0L
 
-    val kcalValue: Double? get() = kcal.replace(',', '.').toDoubleOrNull()
+    val kcalValue: Double? get() = DecimalInput.parse(kcal)
 
     val nameValid: Boolean get() = name.isNotBlank()
 
     val canSave: Boolean get() = nameValid && (kcalValue ?: -1.0) >= 0
 
-    private fun num(text: String): Double = text.replace(',', '.').toDoubleOrNull() ?: 0.0
-    private fun optional(text: String): Double? =
-        text.takeIf { it.isNotBlank() }?.replace(',', '.')?.toDoubleOrNull()
+    private fun num(text: String): Double = DecimalInput.parse(text) ?: 0.0
+    private fun optional(text: String): Double? = DecimalInput.parseOptional(text)
 
     val per100g: Nutrients
         get() = Nutrients(
@@ -61,20 +61,12 @@ data class EditFoodUiState(
             protein = num(protein),
             carbs = num(carbs),
             fat = num(fat),
+            satFat = optional(satFat),
             fiber = optional(fiber),
             sugar = optional(sugar),
             sodiumMg = optional(sodiumMg),
         )
 
-    /** Energy implied by the macros, used for a gentle "these don't add up" hint. */
-    val macroKcal: Double get() = per100g.kcalFromMacros
-
-    val macroMismatch: Boolean
-        get() {
-            val stated = kcalValue ?: return false
-            if (stated <= 0 || macroKcal <= 0) return false
-            return abs(stated - macroKcal) > maxOf(25.0, stated * 0.2)
-        }
 }
 
 class EditFoodViewModel(
@@ -134,6 +126,7 @@ class EditFoodViewModel(
         protein = Format.amount(per100g.protein),
         carbs = Format.amount(per100g.carbs),
         fat = Format.amount(per100g.fat),
+        satFat = per100g.satFat?.let { Format.amount(it) }.orEmpty(),
         fiber = per100g.fiber?.let { Format.amount(it) }.orEmpty(),
         sugar = per100g.sugar?.let { Format.amount(it) }.orEmpty(),
         sodiumMg = per100g.sodiumMg?.let { Format.amount(it) }.orEmpty(),
@@ -145,15 +138,14 @@ class EditFoodViewModel(
         _state.update { it.copy(barcode = value.filter(Char::isDigit)) }
         refreshBarcodeOwner()
     }
-    fun setKcal(value: String) = _state.update { it.copy(kcal = value) }
-    fun setProtein(value: String) = _state.update { it.copy(protein = value) }
-    fun setCarbs(value: String) = _state.update { it.copy(carbs = value) }
-    fun setFat(value: String) = _state.update { it.copy(fat = value) }
-    fun setFiber(value: String) = _state.update { it.copy(fiber = value) }
-    fun setSugar(value: String) = _state.update { it.copy(sugar = value) }
-    fun setSodium(value: String) = _state.update { it.copy(sodiumMg = value) }
-
-    fun useMacroEnergy() = _state.update { it.copy(kcal = Format.amount(it.macroKcal)) }
+    fun setKcal(value: String) = _state.update { it.copy(kcal = DecimalInput.sanitize(value)) }
+    fun setProtein(value: String) = _state.update { it.copy(protein = DecimalInput.sanitize(value)) }
+    fun setCarbs(value: String) = _state.update { it.copy(carbs = DecimalInput.sanitize(value)) }
+    fun setFat(value: String) = _state.update { it.copy(fat = DecimalInput.sanitize(value)) }
+    fun setSatFat(value: String) = _state.update { it.copy(satFat = DecimalInput.sanitize(value)) }
+    fun setFiber(value: String) = _state.update { it.copy(fiber = DecimalInput.sanitize(value)) }
+    fun setSugar(value: String) = _state.update { it.copy(sugar = DecimalInput.sanitize(value)) }
+    fun setSodium(value: String) = _state.update { it.copy(sodiumMg = DecimalInput.sanitize(value)) }
 
     fun save() {
         val current = _state.value

@@ -12,6 +12,8 @@ data class Nutrients(
     val protein: Double,
     val carbs: Double,
     val fat: Double,
+    /** The saturated share of [fat]; packaging states it as "of which saturates". */
+    val satFat: Double? = null,
     val fiber: Double? = null,
     val sugar: Double? = null,
     val sodiumMg: Double? = null,
@@ -21,6 +23,7 @@ data class Nutrients(
         protein = protein * factor,
         carbs = carbs * factor,
         fat = fat * factor,
+        satFat = satFat?.times(factor),
         fiber = fiber?.times(factor),
         sugar = sugar?.times(factor),
         sodiumMg = sodiumMg?.times(factor),
@@ -31,13 +34,11 @@ data class Nutrients(
         protein = protein + other.protein,
         carbs = carbs + other.carbs,
         fat = fat + other.fat,
+        satFat = sumOrNull(satFat, other.satFat),
         fiber = sumOrNull(fiber, other.fiber),
         sugar = sumOrNull(sugar, other.sugar),
         sodiumMg = sumOrNull(sodiumMg, other.sodiumMg),
     )
-
-    /** Energy implied by the macros, useful for sanity-checking user-entered foods. */
-    val kcalFromMacros: Double get() = protein * 4 + carbs * 4 + fat * 9
 
     private companion object {
         fun sumOrNull(a: Double?, b: Double?): Double? =

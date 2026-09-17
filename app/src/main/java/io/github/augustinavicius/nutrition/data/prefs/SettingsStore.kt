@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.augustinavicius.nutrition.core.Goals
+import io.github.augustinavicius.nutrition.update.UpdateChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -22,16 +23,8 @@ data class UpdateSettings(
     val lastCheckedAt: Long = 0L,
     /** Version the user chose to skip, so a declined update stops nagging. */
     val skippedVersionCode: Int = 0,
+    val channel: UpdateChannel = UpdateChannel.DEFAULT,
 )
-
-data class SyncSettings(
-    val serverUrl: String = "",
-    val username: String = "",
-    val folder: String = "nutrition",
-    val lastSyncedAt: Long = 0L,
-) {
-    val isConfigured: Boolean get() = serverUrl.isNotBlank() && username.isNotBlank()
-}
 
 class SettingsStore(context: Context, private val defaultOwner: String, private val defaultRepo: String) {
 
@@ -60,26 +53,9 @@ class SettingsStore(context: Context, private val defaultOwner: String, private 
             repo = prefs[KEY_REPO]?.takeIf { it.isNotBlank() } ?: defaultRepo,
             lastCheckedAt = prefs[KEY_LAST_CHECKED] ?: 0L,
             skippedVersionCode = prefs[KEY_SKIPPED_VERSION] ?: 0,
+            channel = UpdateChannel.fromId(prefs[KEY_CHANNEL]),
         )
     }
-
-    val syncSettings: Flow<SyncSettings> = store.data.map { prefs ->
-        SyncSettings(
-            serverUrl = prefs[KEY_SYNC_URL].orEmpty(),
-            username = prefs[KEY_SYNC_USER].orEmpty(),
-            folder = prefs[KEY_SYNC_FOLDER] ?: "nutrition",
-            lastSyncedAt = prefs[KEY_SYNC_LAST_AT] ?: 0L,
-        )
-    }
-
-    suspend fun setSyncServer(serverUrl: String, username: String, folder: String) =
-        store.edit { prefs ->
-            prefs[KEY_SYNC_URL] = serverUrl.trim()
-            prefs[KEY_SYNC_USER] = username.trim()
-            prefs[KEY_SYNC_FOLDER] = folder.trim().trim('/')
-        }
-
-    suspend fun setSyncLastAt(at: Long) = store.edit { it[KEY_SYNC_LAST_AT] = at }
 
     suspend fun setGoals(goals: Goals) {
         store.edit { prefs ->
@@ -101,6 +77,15 @@ class SettingsStore(context: Context, private val defaultOwner: String, private 
 
     suspend fun setSkippedVersionCode(versionCode: Int) = store.edit { it[KEY_SKIPPED_VERSION] = versionCode }
 
+    /**
+     * Switching channel clears the skip: a version skipped on one channel says nothing about
+     * what the other offers, and the numbering is shared, so a stale skip could hide a release.
+     */
+    suspend fun setChannel(channel: UpdateChannel) = store.edit { prefs ->
+        prefs[KEY_CHANNEL] = channel.id
+        prefs.remove(KEY_SKIPPED_VERSION)
+    }
+
     private companion object {
         val DEFAULTS = Goals()
 
@@ -113,9 +98,6 @@ class SettingsStore(context: Context, private val defaultOwner: String, private 
         val KEY_REPO = stringPreferencesKey("update_repo")
         val KEY_LAST_CHECKED = longPreferencesKey("update_last_checked")
         val KEY_SKIPPED_VERSION = intPreferencesKey("update_skipped_version")
-        val KEY_SYNC_URL = stringPreferencesKey("sync_url")
-        val KEY_SYNC_USER = stringPreferencesKey("sync_user")
-        val KEY_SYNC_FOLDER = stringPreferencesKey("sync_folder")
-        val KEY_SYNC_LAST_AT = longPreferencesKey("sync_last_at")
+        val KEY_CHANNEL = stringPreferencesKey("update_channel")
     }
 }

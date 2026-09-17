@@ -49,6 +49,7 @@ data class OffNutriments(
     @SerialName("proteins_100g") val proteinsRaw: JsonPrimitive? = null,
     @SerialName("carbohydrates_100g") val carbohydratesRaw: JsonPrimitive? = null,
     @SerialName("fat_100g") val fatRaw: JsonPrimitive? = null,
+    @SerialName("saturated-fat_100g") val saturatedFatRaw: JsonPrimitive? = null,
     @SerialName("fiber_100g") val fiberRaw: JsonPrimitive? = null,
     @SerialName("sugars_100g") val sugarsRaw: JsonPrimitive? = null,
     @SerialName("sodium_100g") val sodiumRaw: JsonPrimitive? = null,
@@ -61,6 +62,7 @@ data class OffNutriments(
     val proteinPer100g: Double? get() = proteinsRaw.num()
     val carbsPer100g: Double? get() = carbohydratesRaw.num()
     val fatPer100g: Double? get() = fatRaw.num()
+    val satFatPer100g: Double? get() = saturatedFatRaw.num()
     val fiberPer100g: Double? get() = fiberRaw.num()
     val sugarPer100g: Double? get() = sugarsRaw.num()
 

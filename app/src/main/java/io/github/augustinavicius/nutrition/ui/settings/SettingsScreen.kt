@@ -32,6 +32,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -56,7 +59,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.augustinavicius.nutrition.BuildConfig
 import io.github.augustinavicius.nutrition.core.Format
-import io.github.augustinavicius.nutrition.update.SignInStep
+import io.github.augustinavicius.nutrition.update.UpdateChannel
 import io.github.augustinavicius.nutrition.update.UpdateStatus
 import java.text.DateFormat
 import java.util.Date
@@ -71,7 +74,6 @@ fun SettingsScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var showRepoDialog by rememberSaveable { mutableStateOf(false) }
-    var showSyncDialog by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.dismissUpdateNotification(context) }
 
@@ -79,13 +81,6 @@ fun SettingsScreen(
         state.message?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.dismissMessage()
-        }
-    }
-
-    LaunchedEffect(state.syncMessage) {
-        state.syncMessage?.let {
-            snackbarHostState.showSnackbar(it)
-            viewModel.dismissSyncMessage()
         }
     }
 
@@ -111,17 +106,7 @@ fun SettingsScreen(
                 state = state,
                 viewModel = viewModel,
                 onEditRepository = { showRepoDialog = true },
-                onOpenUrl = { url -> context.openUrl(url) },
                 onAllowInstalls = { context.startActivity(viewModel.unknownSourcesIntent()) },
-            )
-
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-
-            SyncSection(
-                state = state,
-                onEditServer = { showSyncDialog = true },
-                onSyncNow = viewModel::syncNow,
-                onDisconnect = viewModel::disconnectSync,
             )
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
@@ -138,17 +123,6 @@ fun SettingsScreen(
             }
             Spacer(Modifier.height(32.dp))
         }
-    }
-
-    if (showSyncDialog) {
-        SyncServerDialog(
-            settings = state.sync,
-            onDismiss = { showSyncDialog = false },
-            onSubmit = { url, user, password, folder ->
-                showSyncDialog = false
-                viewModel.setSyncServer(url, user, password, folder)
-            },
-        )
     }
 
     if (showRepoDialog) {
@@ -230,7 +204,6 @@ private fun UpdatesSection(
     state: SettingsUiState,
     viewModel: SettingsViewModel,
     onEditRepository: () -> Unit,
-    onOpenUrl: (String) -> Unit,
     onAllowInstalls: () -> Unit,
 ) {
     Text("App updates", style = MaterialTheme.typography.titleMedium)
@@ -258,18 +231,7 @@ private fun UpdatesSection(
         )
     }
 
-    if (!state.signedIn) {
-        SignInBlock(state, viewModel, onOpenUrl)
-    } else {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = state.account?.let { "Signed in to GitHub as $it" } ?: "Signed in to GitHub",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(onClick = viewModel::signOut) { Text("Sign out") }
-        }
-    }
+    ChannelPicker(state.update.channel, viewModel::setChannel)
 
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
@@ -297,7 +259,7 @@ private fun UpdatesSection(
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         FilledTonalButton(
             onClick = viewModel::checkForUpdates,
-            enabled = state.signedIn && state.status !is UpdateStatus.Checking,
+            enabled = state.status !is UpdateStatus.Checking,
         ) { Text("Check for updates") }
 
         if (state.status is UpdateStatus.Checking) {
@@ -309,77 +271,30 @@ private fun UpdatesSection(
 }
 
 @Composable
-private fun SignInBlock(
-    state: SettingsUiState,
-    viewModel: SettingsViewModel,
-    onOpenUrl: (String) -> Unit,
-) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Connect to GitHub", style = MaterialTheme.typography.titleSmall)
-            Text(
-                text = "Releases live in a private repository, so the app needs your permission " +
-                    "to read them.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+private fun ChannelPicker(selected: UpdateChannel, onSelect: (UpdateChannel) -> Unit) {
+    Text("Update channel", style = MaterialTheme.typography.bodyLarge)
 
-            when (val step = state.signIn) {
-                is SignInStep.AwaitingUser -> {
-                    Text("Enter this code on GitHub:", style = MaterialTheme.typography.bodyMedium)
-                    SelectionContainer {
-                        Text(
-                            text = step.userCode,
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontFamily = FontFamily.Monospace,
-                            letterSpacing = 4.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { onOpenUrl(step.verificationUri) }) { Text("Open GitHub") }
-                        OutlinedButton(onClick = viewModel::cancelSignIn) { Text("Cancel") }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "Waiting for you to approve…",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                }
-
-                SignInStep.Starting -> Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Contacting GitHub…", style = MaterialTheme.typography.bodySmall)
-                }
-
-                is SignInStep.Failed -> Text(
-                    text = step.message,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-
-                else -> Unit
-            }
-
-            if (state.signIn !is SignInStep.AwaitingUser && state.signIn !is SignInStep.Starting) {
-                if (state.deviceFlowAvailable) {
-                    Button(onClick = viewModel::startDeviceFlow) { Text("Sign in with GitHub") }
-                } else {
-                    Text(
-                        text = "This build carries no OAuth client id, so it cannot sign in. " +
-                            "Set APP_GITHUB_OAUTH_CLIENT_ID and publish a new release.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-            }
+    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+        UpdateChannel.entries.forEachIndexed { index, channel ->
+            SegmentedButton(
+                selected = channel == selected,
+                onClick = { onSelect(channel) },
+                shape = SegmentedButtonDefaults.itemShape(index, UpdateChannel.entries.size),
+            ) { Text(channel.label) }
         }
     }
+
+    Text(
+        text = when (selected) {
+            UpdateChannel.STABLE ->
+                "Releases built from the master branch. Fewer updates, each one finished."
+            UpdateChannel.DEVELOPMENT ->
+                "Every build, including those from the development branch, as soon as it is " +
+                    "pushed. Newer, and rougher."
+        },
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable
@@ -460,14 +375,8 @@ private fun UpdateStatusBlock(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        UpdateStatus.NoReleases -> Text(
-            text = "That repository has no published releases yet.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        UpdateStatus.NeedsSignIn -> Text(
-            text = "Sign in to GitHub to check for updates.",
+        is UpdateStatus.NoReleases -> Text(
+            text = "No releases on the ${status.channel.label.lowercase()} channel yet.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -480,125 +389,6 @@ private fun UpdateStatusBlock(
 
         else -> Unit
     }
-}
-
-@Composable
-private fun SyncSection(
-    state: SettingsUiState,
-    onEditServer: () -> Unit,
-    onSyncNow: () -> Unit,
-    onDisconnect: () -> Unit,
-) {
-    Text("Sync library", style = MaterialTheme.typography.titleMedium)
-    Text(
-        text = "Keeps your foods and recipes on a WebDAV server you control — Nextcloud, " +
-            "ownCloud, or anything else that speaks it. The diary stays on this device.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-
-    if (!state.syncReady) {
-        Button(onClick = onEditServer) { Text("Set up sync") }
-        return
-    }
-
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(state.sync.serverUrl, style = MaterialTheme.typography.bodyMedium)
-            Text(
-                text = "${state.sync.username} · ${state.sync.folder}/library.json",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        TextButton(onClick = onEditServer) { Text("Change") }
-    }
-
-    if (state.sync.lastSyncedAt > 0) {
-        Text(
-            text = "Last synced ${
-                DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
-                    .format(Date(state.sync.lastSyncedAt))
-            }",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        FilledTonalButton(onClick = onSyncNow, enabled = !state.syncing) { Text("Sync now") }
-        if (state.syncing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-        TextButton(onClick = onDisconnect) { Text("Disconnect") }
-    }
-}
-
-@Composable
-private fun SyncServerDialog(
-    settings: io.github.augustinavicius.nutrition.data.prefs.SyncSettings,
-    onDismiss: () -> Unit,
-    onSubmit: (url: String, user: String, password: String, folder: String) -> Unit,
-) {
-    var url by rememberSaveable { mutableStateOf(settings.serverUrl) }
-    var user by rememberSaveable { mutableStateOf(settings.username) }
-    var password by rememberSaveable { mutableStateOf("") }
-    var folder by rememberSaveable { mutableStateOf(settings.folder) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("WebDAV server") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    label = { Text("Server URL") },
-                    placeholder = { Text("https://cloud.example.com/remote.php/dav/files/you") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = user,
-                    onValueChange = { user = it },
-                    label = { Text("Username") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text(if (settings.isConfigured) "Password (blank to keep)" else "Password") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                )
-                OutlinedTextField(
-                    value = folder,
-                    onValueChange = { folder = it },
-                    label = { Text("Folder") },
-                    singleLine = true,
-                )
-                if (url.trim().startsWith("http://")) {
-                    Text(
-                        text = "Release builds refuse plain HTTP: WebDAV sends your password " +
-                            "with every request, so it needs https://.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                Text(
-                    text = "An app password is safer here than your account password, if your " +
-                        "server offers them. It is stored encrypted on this device.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onSubmit(url, user, password, folder) },
-                enabled = url.isNotBlank() && user.isNotBlank() &&
-                    (password.isNotBlank() || settings.isConfigured),
-            ) { Text("Save") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
 }
 
 @Composable

@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
-    <!-- The GitHub token is encrypted with a Keystore key that never leaves the device,
-         so backing it up would only restore an undecryptable blob. -->
+    <!-- Nothing writes this any more: it held the WebDAV password and the old GitHub token,
+         both encrypted with a Keystore key that never left the device. Old installs still
+         carry the file until first launch deletes it, so keep it out of backups until then. -->
     <exclude domain="sharedpref" path="nutrition_secrets.xml" />
 </full-backup-content>

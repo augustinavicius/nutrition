@@ -23,6 +23,12 @@ class DiaryRepository(
 
     suspend fun entry(id: Long): DiaryEntry? = dao.byId(id)?.toDomain()
 
+    /**
+     * The meal the last entry went into, which is the best guess for the next one: people log
+     * a meal in a run, and the clock is a poorer guide than what they just did.
+     */
+    suspend fun lastLoggedMeal(): MealType? = dao.lastLoggedMeal()
+
     /** Logs [grams] of [food]; also bumps the food's usage counters so it ranks higher later. */
     suspend fun log(food: Food, grams: Double, meal: MealType, date: LocalDate): Long {
         val id = dao.insert(

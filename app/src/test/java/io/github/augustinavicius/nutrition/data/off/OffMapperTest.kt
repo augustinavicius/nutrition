@@ -21,6 +21,7 @@ class OffMapperTest {
                 proteinsRaw = JsonPrimitive(6.3),
                 carbohydratesRaw = JsonPrimitive(57.5),
                 fatRaw = JsonPrimitive(30.9),
+                saturatedFatRaw = JsonPrimitive(10.6),
                 sugarsRaw = JsonPrimitive(56.3),
                 sodiumRaw = JsonPrimitive(0.0428),
             ),
@@ -30,6 +31,7 @@ class OffMapperTest {
         assertEquals(6.3, food.per100g.protein, 1e-9)
         // Only the first brand is kept; the rest is crowd-sourced noise.
         assertEquals("Ferrero", food.brand)
+        assertEquals(10.6, food.per100g.satFat!!, 1e-9)
         // OFF reports sodium in grams.
         assertEquals(42.8, food.per100g.sodiumMg!!, 1e-6)
     }
@@ -59,6 +61,12 @@ class OffMapperTest {
     }
 
     @Test
+    fun `an unreported saturates figure stays unreported rather than zero`() {
+        val food = product(nutriments = OffNutriments(fatRaw = JsonPrimitive(5))).toFood()!!
+        assertNull(food.per100g.satFat)
+    }
+
+    @Test
     fun `products without a code or a name are rejected`() {
         assertNull(product(code = null).toFood())
         assertNull(product(name = null).toFood())
@@ -85,6 +93,7 @@ class OffMapperTest {
                   "proteins_100g": "8.5",
                   "carbohydrates_100g": 4.1,
                   "fat_100g": 5,
+                  "saturated-fat_100g": 3.4,
                   "salt_100g": 0.1,
                   "another-unmapped_100g": 1
                 }
@@ -99,6 +108,7 @@ class OffMapperTest {
         assertEquals("Yogurt Greek Style", food!!.name)
         assertEquals(96.1759082217972, food.per100g.kcal, 1e-9)
         assertEquals(8.5, food.per100g.protein, 1e-9)
+        assertEquals(3.4, food.per100g.satFat!!, 1e-9)
         // Serving fields are no longer requested or read, and must not break decoding.
         assertTrue(response.product.nutriments.hasAnyData)
     }

@@ -1,10 +1,12 @@
 name: Release
 
-# Every push to the default branch ships a release, which is what the in-app updater
-# polls. Put "[skip release]" in a commit message to push without cutting one.
+# Every push ships a release, which is what the in-app updater polls:
+#   master      -> a full release on the stable channel
+#   development -> a pre-release on the development channel
+# Put "[skip release]" in a commit message to push without cutting one.
 on:
   push:
-    branches: [main, master]
+    branches: [master, development]
   workflow_dispatch:
 
 permissions:
@@ -25,7 +27,6 @@ jobs:
     env:
       APP_GITHUB_OWNER: ${{ github.repository_owner }}
       APP_GITHUB_REPO: ${{ github.event.repository.name }}
-      APP_GITHUB_OAUTH_CLIENT_ID: ${{ secrets.APP_GITHUB_OAUTH_CLIENT_ID }}
       APP_KEYSTORE_PASSWORD: ${{ secrets.APP_KEYSTORE_PASSWORD }}
       APP_KEY_ALIAS: ${{ secrets.APP_KEY_ALIAS }}
       APP_KEY_PASSWORD: ${{ secrets.APP_KEY_PASSWORD }}
@@ -61,14 +62,6 @@ jobs:
             echo "with the same key, so an unsigned or ad-hoc-signed release is not useful."
             exit 1
           fi
-          if [ -z "$APP_GITHUB_OAUTH_CLIENT_ID" ]; then
-            echo "::error::Missing repository secret: APP_GITHUB_OAUTH_CLIENT_ID"
-            echo "Signing in with GitHub is the only way the app can read this private"
-            echo "repository's releases, and that needs an OAuth app's client id. Create one"
-            echo "at https://github.com/settings/developers with Device Flow enabled, then:"
-            echo "  gh secret set APP_GITHUB_OAUTH_CLIENT_ID -R ${{ github.repository }}"
-            exit 1
-          fi
 
       - name: Decode keystore
         env:
@@ -90,17 +83,35 @@ jobs:
           fi
           echo "APP_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
-      - name: Work out the version
+      - name: Work out the version and channel
         id: version
         run: |
-          # run_number only ever increases for a given workflow, which is exactly what
-          # versionCode requires: Android refuses to install a lower code over a higher one.
+          # run_number only ever increases for a given workflow — across both branches,
+          # since it is one workflow — which is exactly what versionCode requires: Android
+          # refuses to install a lower code over a higher one, and a device on the
+          # development channel must never be offered a stale build as an "update".
           VERSION_CODE="${{ github.run_number }}"
-          VERSION_NAME="1.0.$VERSION_CODE"
+
+          # A pre-release keeps GitHub's own "Latest release" pointing at the newest stable
+          # one, which is what someone installing the first copy by hand should land on.
+          if [ "${{ github.ref_name }}" = "development" ]; then
+            CHANNEL=development
+            VERSION_NAME="1.0.$VERSION_CODE-dev"
+            TAG="v$VERSION_NAME"
+            RELEASE_FLAGS="--prerelease"
+          else
+            CHANNEL=stable
+            VERSION_NAME="1.0.$VERSION_CODE"
+            TAG="v$VERSION_NAME"
+            RELEASE_FLAGS="--latest"
+          fi
+
           {
             echo "code=$VERSION_CODE"
             echo "name=$VERSION_NAME"
-            echo "tag=v$VERSION_NAME"
+            echo "tag=$TAG"
+            echo "channel=$CHANNEL"
+            echo "flags=$RELEASE_FLAGS"
           } >> "$GITHUB_OUTPUT"
           {
             echo "APP_VERSION_CODE=$VERSION_CODE"
@@ -161,14 +172,18 @@ jobs:
         id: notes
         run: |
           {
-            # The app reads this marker to decide whether a release is newer than the
-            # build the user has installed. Keep it on its own line.
+            # The app reads these markers to decide whether a release is newer than the
+            # build the user has installed, and whether it belongs to the channel they
+            # follow. Keep each on its own line.
             echo "versionCode: ${{ steps.version.outputs.code }}"
+            echo "channel: ${{ steps.version.outputs.channel }}"
             echo
             git log -1 --pretty=format:'%s' "${{ github.sha }}"
             echo
             echo
-            echo "Commit \`${GITHUB_SHA:0:7}\` · signing SHA-256 \`${{ steps.artefacts.outputs.fingerprint }}\`"
+            echo "Built from \`${{ github.ref_name }}\` · commit \`${GITHUB_SHA:0:7}\`"
+            echo
+            echo "Signing SHA-256 \`${{ steps.artefacts.outputs.fingerprint }}\`"
           } > release-notes.md
           cat release-notes.md
 
@@ -179,6 +194,6 @@ jobs:
           gh release create "${{ steps.version.outputs.tag }}" \
             --title "${{ steps.version.outputs.name }}" \
             --notes-file release-notes.md \
-            --latest \
+            ${{ steps.version.outputs.flags }} \
             --target "${{ github.sha }}" \
             dist/*

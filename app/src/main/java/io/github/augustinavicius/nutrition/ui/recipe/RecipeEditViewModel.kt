@@ -9,6 +9,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.toRoute
 import io.github.augustinavicius.nutrition.NutritionApp
+import io.github.augustinavicius.nutrition.core.DecimalInput
 import io.github.augustinavicius.nutrition.core.Format
 import io.github.augustinavicius.nutrition.core.Nutrients
 import io.github.augustinavicius.nutrition.core.Recipe
@@ -33,7 +34,7 @@ data class IngredientRow(
     val gramsText: String,
     val per100g: Nutrients,
 ) {
-    val grams: Double? get() = gramsText.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }
+    val grams: Double? get() = DecimalInput.parse(gramsText)?.takeIf { it > 0 }
 
     val nutrients: Nutrients get() = per100g * ((grams ?: 0.0) / 100.0)
 }
@@ -55,7 +56,7 @@ data class RecipeEditUiState(
     val total: Nutrients get() = ingredients.map { it.nutrients }.sum()
 
     val cookedGrams: Double?
-        get() = cookedGramsText.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }
+        get() = DecimalInput.parse(cookedGramsText)?.takeIf { it > 0 }
 
     /** What portions are measured against: the cooked weight if given, else the raw total. */
     val yieldGrams: Double get() = cookedGrams ?: rawGrams
@@ -133,11 +134,14 @@ class RecipeEditViewModel(
 
     fun setName(value: String) = _state.update { it.copy(name = value) }
 
-    fun setCookedGrams(value: String) = _state.update { it.copy(cookedGramsText = value) }
+    fun setCookedGrams(value: String) =
+        _state.update { it.copy(cookedGramsText = DecimalInput.sanitize(value)) }
 
     fun setIngredientGrams(key: Long, value: String) = _state.update { current ->
         current.copy(
-            ingredients = current.ingredients.map { if (it.key == key) it.copy(gramsText = value) else it }
+            ingredients = current.ingredients.map {
+                if (it.key == key) it.copy(gramsText = DecimalInput.sanitize(value)) else it
+            }
         )
     }
 

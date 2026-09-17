@@ -1,6 +1,5 @@
 package io.github.augustinavicius.nutrition.data.db
 
-import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.ForeignKey
@@ -11,11 +10,9 @@ import io.github.augustinavicius.nutrition.core.Nutrients
 import io.github.augustinavicius.nutrition.core.Recipe
 import io.github.augustinavicius.nutrition.core.RecipeIngredient
 
-@Entity(tableName = "recipes", indices = [Index(value = ["uid"], unique = true)])
+@Entity(tableName = "recipes")
 data class RecipeEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    /** Stable across devices, unlike the row id. Sync matches records on this. */
-    @ColumnInfo(defaultValue = "") val uid: String = newUid(),
     val name: String,
     /** What the finished dish weighed; null until it has been weighed. */
     val cookedGrams: Double?,
@@ -57,7 +54,6 @@ data class RecipeWithIngredients(
 
 fun RecipeWithIngredients.toDomain() = Recipe(
     id = recipe.id,
-    uid = recipe.uid,
     name = recipe.name,
     cookedGrams = recipe.cookedGrams,
     foodId = recipe.foodId,
@@ -76,7 +72,6 @@ fun RecipeIngredientEntity.toDomain() = RecipeIngredient(
 
 fun Recipe.toEntity() = RecipeEntity(
     id = id,
-    uid = uid.ifBlank { newUid() },
     name = name.trim(),
     cookedGrams = cookedGrams,
     foodId = foodId,

@@ -28,8 +28,6 @@ data class RecipeIngredient(
  */
 data class Recipe(
     val id: Long = 0,
-    /** Stable across devices; the row id is not. Assigned on first save. */
-    val uid: String = "",
     val name: String,
     val cookedGrams: Double? = null,
     val ingredients: List<RecipeIngredient> = emptyList(),

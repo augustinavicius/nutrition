@@ -1,8 +1,8 @@
 # Nutrition
 
 A calorie and macro tracker for Android. Scan a barcode, search a global food database,
-or add your own foods — and keep the app itself up to date straight from this private
-GitHub repository.
+or add your own foods — and keep the app itself up to date straight from this GitHub
+repository.
 
 - **Scan** — point the camera at a product barcode. Known products resolve instantly from
   the on-device cache; unknown ones are looked up in Open Food Facts and cached for next time.
@@ -15,10 +15,12 @@ GitHub repository.
   raw total over the cooked weight is what makes a serving come out right.
 - **Diary** — a day at a time, split by meal, with a calorie ring, macro bars against your
   goals, and a seven-day trend.
-- **Sync** — keeps your foods and recipes on a WebDAV server you control, so a second device
-  starts with the library you have already built.
-- **Self-update** — signs in to GitHub, watches this repository's releases, and installs newer
-  builds in place.
+- **Local only** — everything lives in one SQLite database on the device. There is no server,
+  no account and no network storage; the only thing the app fetches is Open Food Facts lookups
+  and its own releases.
+- **Self-update** — watches this repository's releases and installs newer builds in place. No
+  account, no sign-in: the repository is public, so the app reads releases anonymously. Pick
+  the **stable** channel for releases cut from `master`, or **development** for every build.
 
 ## Requirements
 
@@ -48,17 +50,39 @@ cp .env.example .env      # then fill it in
 ./gradlew :app:assembleRelease        # release APK (debug-signed unless .env names a keystore)
 ```
 
+## Branches and update channels
+
+| Branch | Channel | Published as | Tag |
+| --- | --- | --- | --- |
+| `master` | Stable | full release, marked latest | `v1.0.<code>` |
+| `development` | Development | pre-release | `v1.0.<code>-dev` |
+
+Day-to-day work lands on `development`, which ships a build to anyone who has chosen that
+channel in **Settings → App updates**. Merging into `master` cuts a stable release, which
+everyone gets.
+
+The development channel is a superset: it offers whichever release is newest, stable or not.
+Marking development builds as GitHub pre-releases keeps the repository's "Latest release"
+pointing at the newest stable one, which is what someone installing the first copy by hand
+should land on.
+
+`versionCode` is the workflow run number and is shared by both branches, so it only ever
+increases no matter which branch built last. One consequence is worth knowing: moving from
+development back to stable leaves the device on a higher build than stable offers, so it will
+report itself up to date until stable overtakes it. Android will not install a lower
+`versionCode` over a higher one, so that is the only honest answer.
+
 ## Setting up automatic releases
 
-Every push to the default branch runs `.github/workflows/release.yml`, which tests, lints,
-builds a signed release APK and publishes it as a GitHub release. The app polls those releases.
-One script covers the setup:
+Every push to `master` or `development` runs `.github/workflows/release.yml`, which tests,
+lints, builds a signed release APK and publishes it as a GitHub release. The app polls those
+releases. One script covers the setup:
 
 ```bash
 ./scripts/setup-release.sh
 ```
 
-It creates the signing keystore, records it in `.env` and prompts for the OAuth client id.
+It creates the signing keystore and records it in `.env`.
 
 If the [GitHub CLI](https://cli.github.com) is installed and signed in (`gh auth login`) it
 uploads the secrets too. **It is not required** — without it the script prints the exact values
@@ -72,10 +96,9 @@ that runs on a GitHub runner where it is preinstalled.)
 | `APP_KEYSTORE_PASSWORD` | keystore password |
 | `APP_KEY_ALIAS` | key alias |
 | `APP_KEY_PASSWORD` | key password |
-| `APP_GITHUB_OAUTH_CLIENT_ID` | client id of the OAuth app the user signs in through |
 
 The workflow fails fast with an explanatory message if any of these are missing, rather than
-publishing a release that cannot be installed or cannot be authenticated against.
+publishing a release that cannot be installed.
 
 ### The signing key
 
@@ -87,46 +110,13 @@ replaced. `.gitignore` excludes `*.jks`.
 The script needs `keytool`, which ships with any JDK. With no JDK on `PATH`, point it at one:
 `JAVA_HOME=/path/to/jdk ./scripts/setup-release.sh`.
 
-### Signing in with GitHub
-
-The repository is private, so the app needs a credential to read releases and download assets.
-It gets one through the OAuth **device flow**: the app shows a short code, you approve it at
-github.com/login/device, and the resulting token is encrypted with an Android Keystore key
-before it touches disk and is excluded from device backups.
-
-That needs a registration on GitHub, and there are two kinds. Both use the same device-flow
-endpoints, so the app code is identical either way — only the blast radius of the token differs.
-
-**A GitHub App (recommended).** Create one at
-**Settings → Developer settings → GitHub Apps → New GitHub App**:
-
-- Homepage URL: anything.
-- Untick **Webhook → Active**.
-- Repository permissions → **Contents: Read-only**. Nothing else.
-- Untick **Expire user authorization tokens** — the app stores one long-lived token and has
-  no refresh logic, so leaving this on would silently sign you out after eight hours.
-- Under **Optional features**/settings for the app, enable **Device flow**.
-
-Then **Install App** and give it access to this repository only. The resulting token can read
-exactly one repository's contents.
-
-**An OAuth App (simpler, much broader).** Create one at
-**Settings → Developer settings → OAuth Apps**, tick **Enable Device Flow**. There is no
-per-repository step, because OAuth App scopes are account-wide: the `repo` scope this needs
-grants read *and write* to every repository your account can reach. Fine for a throwaway
-account, worth avoiding for your main one.
-
-Either way, copy the **Client ID** into `APP_GITHUB_OAUTH_CLIENT_ID`. It is not a secret — it is
-compiled into the APK — but the app cannot reach a private repository without one, so a build
-made without it says so plainly instead of offering a sign-in button that could not work.
-
 ### Installing the first build
 
-The updater can only *update*, so the first copy has to be installed by hand. The release is
-private, so the download needs to be authenticated:
+The updater can only *update*, so the first copy has to be installed by hand. The repository
+is public, so the download needs no credentials:
 
-- **Browser:** open the release on github.com while signed in and tap the `.apk` asset. On the
-  phone, allow your browser or file manager to install unknown apps when prompted.
+- **Browser:** open the latest release on github.com and tap the `.apk` asset. On the phone,
+  allow your browser or file manager to install unknown apps when prompted.
 - **Desktop + USB:** download it the same way (or `gh release download --pattern '*.apk'`),
   then `adb install nutrition-<version>.apk`.
 
@@ -137,47 +127,16 @@ Every release after that one arrives through the app.
 Android requires an explicit per-app grant to install packages. The first time an update is
 ready the app offers an *Allow installs* button that opens the right settings screen.
 
-## Syncing the library
-
-Settings → **Sync library** takes a WebDAV server you run — Nextcloud, ownCloud, Apache
-`mod_dav`, `rclone serve webdav` — a username, a password and a folder. Nothing is hosted for
-you and no account is created anywhere; the data is a single file on your own server.
-
-```
-<folder>/library.json      every food and recipe, plus tombstones for deleted ones
-```
-
-The password is stored encrypted with an Android Keystore key, like the GitHub token, and is
-excluded from device backups. Prefer an app password if your server issues them.
-
-**HTTPS is required** in release builds. WebDAV authenticates with every request, so plain
-HTTP would put the password on the wire each time; Android's default cleartext policy blocks
-it and the app says so rather than failing obscurely. Debug builds allow cleartext for local
-testing.
-
-### What syncs, and how conflicts resolve
-
-Foods and recipes travel. **The diary stays on the device that recorded it** — what you ate on
-a given day is append-heavy, rarely edited, and much harder to merge than a library of
-definitions.
-
-Records carry a uid that is stable across devices, and merging is per record, newest edit
-winning. A deletion is just another timestamped fact: a tombstone newer than a record removes
-it, and a record newer than a tombstone brings it back, which is what re-adding a food on
-another device means. Ties go to the copy already on the server, so two devices merging the
-same pair of documents always reach the same answer.
-
-Writes are conditional on the version that was read (`If-Match`), so two devices syncing at
-once cannot silently overwrite each other; a rejected write re-reads, re-merges and tries
-again. Favourites and usage counts describe how one device is used and deliberately stay put.
-
-### Release mechanics
+## Release mechanics
 
 - `versionCode` is the workflow run number, which only ever increases — Android will not
   install a lower code over a higher one.
-- `versionName` is `1.0.<versionCode>`, and the tag is `v<versionName>`.
-- The release body starts with a `versionCode: N` line. That marker is what the app compares
-  against `BuildConfig.VERSION_CODE`; the tag is only a fallback for hand-made releases.
+- `versionName` is `1.0.<versionCode>` on `master` and `1.0.<versionCode>-dev` on
+  `development`; the tag is `v<versionName>`.
+- The release body starts with `versionCode: N` and `channel: <stable|development>` lines.
+  Those markers are what the app compares against `BuildConfig.VERSION_CODE` and against the
+  channel the user follows; the tag is only a fallback for hand-made releases, and so is
+  GitHub's pre-release flag.
 - The APK and the R8 `mapping.txt` are attached to every release. The job also prints the
   signing certificate's SHA-256 so you can confirm it never changes.
 - Put `[skip release]` in a commit message to push without cutting a release.
@@ -193,10 +152,9 @@ core/      domain model: Nutrients, Food, DiaryEntry, Recipe, Goals, formatting
 data/
   db/      Room entities, DAOs, the starter pantry
   off/     Open Food Facts client and mapping
-  prefs/   DataStore settings, Keystore-encrypted secrets
+  prefs/   DataStore settings
   repo/    FoodRepository, DiaryRepository, RecipeRepository
-sync/      library document, merge, WebDAV client
-update/    GitHub API, device-flow auth, download, PackageInstaller, periodic check
+update/    GitHub API, release channels, download, PackageInstaller, periodic check
 ui/        Compose screens, one package per screen, plus shared components
 ```
 

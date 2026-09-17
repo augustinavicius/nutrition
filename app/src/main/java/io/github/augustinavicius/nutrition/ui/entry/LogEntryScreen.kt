@@ -56,6 +56,7 @@ import io.github.augustinavicius.nutrition.ui.components.FoodThumbnail
 import io.github.augustinavicius.nutrition.ui.components.NutrientTable
 import java.time.Instant
 import java.time.ZoneOffset
+import io.github.augustinavicius.nutrition.ui.components.formWindowInsets
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -72,6 +73,7 @@ fun LogEntryScreen(
     LaunchedEffect(state.done) { if (state.done) onDone() }
 
     Scaffold(
+        contentWindowInsets = formWindowInsets(),
         topBar = {
             TopAppBar(
                 title = { Text(if (state.editing) "Edit entry" else "Log food") },

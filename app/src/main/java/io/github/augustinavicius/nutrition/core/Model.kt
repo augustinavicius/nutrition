@@ -30,8 +30,6 @@ enum class FoodSource { CUSTOM, OPEN_FOOD_FACTS, RECIPE }
  */
 data class Food(
     val id: Long = 0,
-    /** Stable across devices; the row id is not. Assigned on first save. */
-    val uid: String = "",
     val name: String,
     val brand: String? = null,
     val barcode: String? = null,

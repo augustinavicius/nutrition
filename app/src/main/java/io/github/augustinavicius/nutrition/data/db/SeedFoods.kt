@@ -70,6 +70,7 @@ internal object SeedFoods {
         protein: Double,
         carbs: Double,
         fat: Double,
+        satFat: Double? = null,
         fiber: Double? = null,
         sugar: Double? = null,
         sodiumMg: Double? = null,
@@ -77,7 +78,7 @@ internal object SeedFoods {
         name = name,
         brand = null,
         barcode = null,
-        per100g = Nutrients(kcal, protein, carbs, fat, fiber, sugar, sodiumMg),
+        per100g = Nutrients(kcal, protein, carbs, fat, satFat, fiber, sugar, sodiumMg),
         source = FoodSource.CUSTOM,
         imageUrl = null,
     )

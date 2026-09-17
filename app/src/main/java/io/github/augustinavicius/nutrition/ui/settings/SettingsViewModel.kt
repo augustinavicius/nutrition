@@ -9,21 +9,15 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.augustinavicius.nutrition.BuildConfig
 import io.github.augustinavicius.nutrition.NutritionApp
 import io.github.augustinavicius.nutrition.core.Goals
-import io.github.augustinavicius.nutrition.data.prefs.SecretStore
 import io.github.augustinavicius.nutrition.data.prefs.SettingsStore
-import io.github.augustinavicius.nutrition.data.prefs.SyncSettings
 import io.github.augustinavicius.nutrition.data.prefs.UpdateSettings
 import io.github.augustinavicius.nutrition.update.ApkInstaller
-import io.github.augustinavicius.nutrition.update.GhDeviceCode
+import io.github.augustinavicius.nutrition.update.UpdateChannel
 import io.github.augustinavicius.nutrition.update.InstallEvent
 import io.github.augustinavicius.nutrition.update.InstallEvents
-import io.github.augustinavicius.nutrition.update.SignInStep
 import io.github.augustinavicius.nutrition.update.UpdateNotifications
 import io.github.augustinavicius.nutrition.update.UpdateRepository
-import io.github.augustinavicius.nutrition.sync.SyncOutcome
-import io.github.augustinavicius.nutrition.sync.SyncRepository
 import io.github.augustinavicius.nutrition.update.UpdateStatus
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -60,36 +54,22 @@ data class SettingsUiState(
         owner = BuildConfig.GITHUB_OWNER,
         repo = BuildConfig.GITHUB_REPO,
     ),
-    val signedIn: Boolean = false,
-    val account: String? = null,
-    val deviceFlowAvailable: Boolean = false,
     val canInstallPackages: Boolean = false,
     val status: UpdateStatus = UpdateStatus.Idle,
-    val signIn: SignInStep = SignInStep.Idle,
     val download: DownloadProgress? = null,
     val installing: Boolean = false,
     val message: String? = null,
     val downloadedApk: File? = null,
-    val sync: SyncSettings = SyncSettings(),
-    val syncPasswordSet: Boolean = false,
-    val syncing: Boolean = false,
-    val syncMessage: String? = null,
-) {
-    val syncReady: Boolean get() = sync.isConfigured && syncPasswordSet
-}
+)
 
 class SettingsViewModel(
     private val settings: SettingsStore,
     private val updates: UpdateRepository,
     private val installer: ApkInstaller,
-    private val sync: SyncRepository,
-    private val secrets: io.github.augustinavicius.nutrition.data.prefs.SecretStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(SettingsUiState())
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
-
-    private var deviceFlowJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -104,21 +84,8 @@ class SettingsViewModel(
                         fat = goals.fatG?.toString().orEmpty(),
                     ),
                     update = update,
-                    signedIn = updates.isSignedIn,
-                    deviceFlowAvailable = updates.deviceFlowAvailable,
                     canInstallPackages = installer.canInstallPackages,
                 )
-            }
-        }
-
-        viewModelScope.launch {
-            settings.syncSettings.collect { stored ->
-                _state.update {
-                    it.copy(
-                        sync = stored,
-                        syncPasswordSet = !secrets.get(SecretStore.WEBDAV_PASSWORD).isNullOrBlank(),
-                    )
-                }
             }
         }
 
@@ -165,6 +132,18 @@ class SettingsViewModel(
         viewModelScope.launch { settings.setAutoCheck(enabled) }
     }
 
+    /** Switching channel re-checks straight away, since the answer usually changes. */
+    fun setChannel(channel: UpdateChannel) {
+        if (_state.value.update.channel == channel) return
+        _state.update {
+            it.copy(update = it.update.copy(channel = channel, skippedVersionCode = 0))
+        }
+        viewModelScope.launch {
+            settings.setChannel(channel)
+            checkForUpdates()
+        }
+    }
+
     fun setRepository(owner: String, repo: String) {
         _state.update { it.copy(update = it.update.copy(owner = owner, repo = repo)) }
         viewModelScope.launch { settings.setRepository(owner, repo) }
@@ -176,96 +155,6 @@ class SettingsViewModel(
 
     fun unknownSourcesIntent() = installer.unknownSourcesSettingsIntent()
 
-    // ---------------------------------------------------------------- sync
-
-    fun setSyncServer(serverUrl: String, username: String, password: String, folder: String) {
-        viewModelScope.launch {
-            settings.setSyncServer(serverUrl, username, folder)
-            if (password.isNotBlank()) secrets.put(SecretStore.WEBDAV_PASSWORD, password)
-            _state.update {
-                it.copy(syncPasswordSet = !secrets.get(SecretStore.WEBDAV_PASSWORD).isNullOrBlank())
-            }
-        }
-    }
-
-    fun disconnectSync() {
-        viewModelScope.launch {
-            secrets.remove(SecretStore.WEBDAV_PASSWORD)
-            settings.setSyncServer("", "", "nutrition")
-            _state.update { it.copy(syncPasswordSet = false, syncMessage = "Sync disconnected.") }
-        }
-    }
-
-    fun syncNow() {
-        if (_state.value.syncing) return
-        viewModelScope.launch {
-            _state.update { it.copy(syncing = true, syncMessage = null) }
-            val message = when (val outcome = sync.sync()) {
-                SyncOutcome.NotConfigured -> "Add your server details first."
-                is SyncOutcome.Failed -> outcome.message
-                is SyncOutcome.Success -> if (outcome.pulled == 0) {
-                    "Already up to date — ${outcome.published} items."
-                } else {
-                    "Synced: ${outcome.pulled} change(s) pulled, ${outcome.published} items in the library."
-                }
-            }
-            _state.update { it.copy(syncing = false, syncMessage = message) }
-        }
-    }
-
-    fun dismissSyncMessage() = _state.update { it.copy(syncMessage = null) }
-
-    // ---------------------------------------------------------------- sign in
-
-    fun startDeviceFlow() {
-        deviceFlowJob?.cancel()
-        deviceFlowJob = viewModelScope.launch {
-            _state.update { it.copy(signIn = SignInStep.Starting) }
-            val code: GhDeviceCode = updates.startDeviceFlow().getOrElse { error ->
-                _state.update { it.copy(signIn = SignInStep.Failed(error.message ?: "Sign-in failed")) }
-                return@launch
-            }
-            _state.update {
-                it.copy(signIn = SignInStep.AwaitingUser(code.userCode, code.verificationUri))
-            }
-            updates.awaitDeviceAuthorization(code).fold(
-                onSuccess = { login ->
-                    _state.update {
-                        it.copy(
-                            signIn = SignInStep.Success(login),
-                            signedIn = true,
-                            account = login,
-                        )
-                    }
-                    checkForUpdates()
-                },
-                onFailure = { error ->
-                    _state.update { it.copy(signIn = SignInStep.Failed(error.message ?: "Sign-in failed")) }
-                },
-            )
-        }
-    }
-
-    fun cancelSignIn() {
-        deviceFlowJob?.cancel()
-        _state.update { it.copy(signIn = SignInStep.Idle) }
-    }
-
-    fun signOut() {
-        deviceFlowJob?.cancel()
-        updates.signOut()
-        _state.update {
-            it.copy(
-                signedIn = false,
-                account = null,
-                signIn = SignInStep.Idle,
-                status = UpdateStatus.Idle,
-                download = null,
-                downloadedApk = null,
-            )
-        }
-    }
-
     // ---------------------------------------------------------------- updates
 
     fun checkForUpdates() {
@@ -275,7 +164,6 @@ class SettingsViewModel(
             _state.update {
                 it.copy(
                     status = status,
-                    signedIn = status !is UpdateStatus.NeedsSignIn && updates.isSignedIn,
                     update = it.update.copy(lastCheckedAt = System.currentTimeMillis()),
                 )
             }
@@ -341,8 +229,6 @@ class SettingsViewModel(
                     app.container.settingsStore,
                     app.container.updateRepository,
                     app.container.apkInstaller,
-                    app.container.syncRepository,
-                    app.container.secretStore,
                 )
             }
         }

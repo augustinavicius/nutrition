@@ -43,8 +43,11 @@ class NutrientsTest {
     }
 
     @Test
-    fun `energy from macros uses Atwater factors`() {
-        assertEquals(10 * 4 + 20 * 4 + 5 * 9.0, base.kcalFromMacros, EPSILON)
+    fun `saturated fat scales and sums like any other optional nutrient`() {
+        val withSatFat = base.copy(satFat = 1.5)
+        assertEquals(3.0, (withSatFat * 2.0).satFat!!, EPSILON)
+        assertEquals(1.5, (base + withSatFat).satFat!!, EPSILON)
+        assertNull((base + base).satFat)
     }
 
     private companion object {

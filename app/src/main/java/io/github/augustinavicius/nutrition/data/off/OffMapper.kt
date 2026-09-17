@@ -28,6 +28,7 @@ fun OffProduct.toFood(): Food? {
             protein = nutriments.proteinPer100g ?: 0.0,
             carbs = nutriments.carbsPer100g ?: 0.0,
             fat = nutriments.fatPer100g ?: 0.0,
+            satFat = nutriments.satFatPer100g,
             fiber = nutriments.fiberPer100g,
             sugar = nutriments.sugarPer100g,
             sodiumMg = nutriments.sodiumMgPer100g,

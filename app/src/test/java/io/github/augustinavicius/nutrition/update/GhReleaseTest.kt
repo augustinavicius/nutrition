@@ -2,7 +2,9 @@ package io.github.augustinavicius.nutrition.update
 
 import io.github.augustinavicius.nutrition.data.Network
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GhReleaseTest {
@@ -54,6 +56,51 @@ class GhReleaseTest {
     }
 
     @Test
+    fun `the channel marker the workflow writes decides the channel`() {
+        assertEquals(
+            UpdateChannel.DEVELOPMENT,
+            GhRelease(tagName = "v1.0.7-dev", body = "versionCode: 7\nchannel: development").channel,
+        )
+        assertEquals(
+            UpdateChannel.STABLE,
+            GhRelease(tagName = "v1.0.7", body = "versionCode: 7\nchannel: stable").channel,
+        )
+    }
+
+    @Test
+    fun `without a marker the pre-release flag decides`() {
+        assertEquals(UpdateChannel.DEVELOPMENT, GhRelease(tagName = "v1", prerelease = true).channel)
+        assertEquals(UpdateChannel.STABLE, GhRelease(tagName = "v1", prerelease = false).channel)
+    }
+
+    @Test
+    fun `stable is offered to everyone, development only to those who asked`() {
+        val stable = GhRelease(tagName = "v1", body = "channel: stable")
+        val dev = GhRelease(tagName = "v2", body = "channel: development")
+
+        assertTrue(stable.isOn(UpdateChannel.STABLE))
+        assertTrue(stable.isOn(UpdateChannel.DEVELOPMENT))
+        assertFalse(dev.isOn(UpdateChannel.STABLE))
+        assertTrue(dev.isOn(UpdateChannel.DEVELOPMENT))
+    }
+
+    @Test
+    fun `release notes hide both machine-readable markers`() {
+        val release = GhRelease(
+            tagName = "v1.0.7",
+            body = "versionCode: 42\nchannel: development\n\nFixed the scanner.",
+        )
+        assertEquals("Fixed the scanner.", release.notes)
+    }
+
+    @Test
+    fun `an unknown channel id falls back to stable rather than hiding releases`() {
+        assertEquals(UpdateChannel.STABLE, UpdateChannel.fromId("nightly"))
+        assertEquals(UpdateChannel.STABLE, UpdateChannel.fromId(null))
+        assertEquals(UpdateChannel.DEVELOPMENT, UpdateChannel.fromId("DEVELOPMENT"))
+    }
+
+    @Test
     fun `a real releases payload decodes with the production json settings`() {
         val payload = """
             {
@@ -83,13 +130,5 @@ class GhReleaseTest {
         assertEquals(987L, release.apkAsset!!.id)
         assertEquals(24591010L, release.apkAsset!!.size)
         assertEquals("Built from commit abc1234.", release.notes)
-    }
-
-    @Test
-    fun `a device flow error response decodes without an access token`() {
-        val payload = """{"error":"authorization_pending","error_description":"Pending"}"""
-        val token = Network.json.decodeFromString(GhAccessToken.serializer(), payload)
-        assertNull(token.accessToken)
-        assertEquals("authorization_pending", token.error)
     }
 }
