@@ -181,7 +181,6 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.retrofit.serialization)
     implementation(libs.okhttp)
-    debugImplementation(libs.okhttp.logging)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

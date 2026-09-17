@@ -8,9 +8,9 @@ package io.github.augustinavicius.nutrition.update
  * full releases; development releases come from `development` and are published as
  * pre-releases, so GitHub's own "Latest release" keeps pointing at the stable one.
  */
-enum class UpdateChannel(val id: String, val label: String, val branch: String) {
-    STABLE("stable", "Stable", "master"),
-    DEVELOPMENT("development", "Development", "development"),
+enum class UpdateChannel(val id: String, val label: String) {
+    STABLE("stable", "Stable"),
+    DEVELOPMENT("development", "Development"),
     ;
 
     companion object {
