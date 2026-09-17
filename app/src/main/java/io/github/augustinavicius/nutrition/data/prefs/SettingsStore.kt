@@ -18,15 +18,13 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 data class UpdateSettings(
     val autoCheck: Boolean = true,
-    val owner: String,
-    val repo: String,
     val lastCheckedAt: Long = 0L,
     /** Version the user chose to skip, so a declined update stops nagging. */
     val skippedVersionCode: Int = 0,
     val channel: UpdateChannel = UpdateChannel.DEFAULT,
 )
 
-class SettingsStore(context: Context, private val defaultOwner: String, private val defaultRepo: String) {
+class SettingsStore(context: Context) {
 
     private val store = context.applicationContext.dataStore
 
@@ -49,8 +47,6 @@ class SettingsStore(context: Context, private val defaultOwner: String, private 
     val updateSettings: Flow<UpdateSettings> = store.data.map { prefs ->
         UpdateSettings(
             autoCheck = prefs[KEY_AUTO_CHECK] ?: true,
-            owner = prefs[KEY_OWNER]?.takeIf { it.isNotBlank() } ?: defaultOwner,
-            repo = prefs[KEY_REPO]?.takeIf { it.isNotBlank() } ?: defaultRepo,
             lastCheckedAt = prefs[KEY_LAST_CHECKED] ?: 0L,
             skippedVersionCode = prefs[KEY_SKIPPED_VERSION] ?: 0,
             channel = UpdateChannel.fromId(prefs[KEY_CHANNEL]),
@@ -67,11 +63,6 @@ class SettingsStore(context: Context, private val defaultOwner: String, private 
     }
 
     suspend fun setAutoCheck(enabled: Boolean) = store.edit { it[KEY_AUTO_CHECK] = enabled }
-
-    suspend fun setRepository(owner: String, repo: String) = store.edit { prefs ->
-        prefs[KEY_OWNER] = owner.trim()
-        prefs[KEY_REPO] = repo.trim()
-    }
 
     suspend fun setLastCheckedAt(at: Long) = store.edit { it[KEY_LAST_CHECKED] = at }
 
@@ -94,8 +85,6 @@ class SettingsStore(context: Context, private val defaultOwner: String, private 
         val KEY_GOAL_CARBS = intPreferencesKey("goal_carbs")
         val KEY_GOAL_FAT = intPreferencesKey("goal_fat")
         val KEY_AUTO_CHECK = booleanPreferencesKey("update_auto_check")
-        val KEY_OWNER = stringPreferencesKey("update_owner")
-        val KEY_REPO = stringPreferencesKey("update_repo")
         val KEY_LAST_CHECKED = longPreferencesKey("update_last_checked")
         val KEY_SKIPPED_VERSION = intPreferencesKey("update_skipped_version")
         val KEY_CHANNEL = stringPreferencesKey("update_channel")

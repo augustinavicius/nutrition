@@ -73,7 +73,6 @@ fun SettingsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    var showRepoDialog by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.dismissUpdateNotification(context) }
 
@@ -105,7 +104,6 @@ fun SettingsScreen(
             UpdatesSection(
                 state = state,
                 viewModel = viewModel,
-                onEditRepository = { showRepoDialog = true },
                 onAllowInstalls = { context.startActivity(viewModel.unknownSourcesIntent()) },
             )
 
@@ -123,18 +121,6 @@ fun SettingsScreen(
             }
             Spacer(Modifier.height(32.dp))
         }
-    }
-
-    if (showRepoDialog) {
-        RepositoryDialog(
-            owner = state.update.owner,
-            repo = state.update.repo,
-            onDismiss = { showRepoDialog = false },
-            onSubmit = { owner, repo ->
-                showRepoDialog = false
-                viewModel.setRepository(owner, repo)
-            },
-        )
     }
 }
 
@@ -203,7 +189,6 @@ private fun MacroGoalField(
 private fun UpdatesSection(
     state: SettingsUiState,
     viewModel: SettingsViewModel,
-    onEditRepository: () -> Unit,
     onAllowInstalls: () -> Unit,
 ) {
     Text("App updates", style = MaterialTheme.typography.titleMedium)
@@ -212,15 +197,11 @@ private fun UpdatesSection(
         text = "Installed: ${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
         style = MaterialTheme.typography.bodyMedium,
     )
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = "Source: ${state.update.owner}/${state.update.repo}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
-        TextButton(onClick = onEditRepository) { Text("Change") }
-    }
+    Text(
+        text = "Source: ${BuildConfig.GITHUB_OWNER}/${BuildConfig.GITHUB_REPO}",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 
     if (BuildConfig.DEBUG) {
         Text(
@@ -389,45 +370,6 @@ private fun UpdateStatusBlock(
 
         else -> Unit
     }
-}
-
-@Composable
-private fun RepositoryDialog(
-    owner: String,
-    repo: String,
-    onDismiss: () -> Unit,
-    onSubmit: (String, String) -> Unit,
-) {
-    var ownerValue by rememberSaveable { mutableStateOf(owner) }
-    var repoValue by rememberSaveable { mutableStateOf(repo) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Update source") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = ownerValue,
-                    onValueChange = { ownerValue = it.trim() },
-                    label = { Text("Owner") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = repoValue,
-                    onValueChange = { repoValue = it.trim() },
-                    label = { Text("Repository") },
-                    singleLine = true,
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onSubmit(ownerValue, repoValue) },
-                enabled = ownerValue.isNotBlank() && repoValue.isNotBlank(),
-            ) { Text("Save") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
 }
 
 private fun android.content.Context.openUrl(url: String) {

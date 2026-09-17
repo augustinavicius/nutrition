@@ -47,10 +47,10 @@ class UpdateRepository(
         val config = settings.updateSettings.first()
 
         val releases = try {
-            api.releases(config.owner, config.repo)
+            api.releases(OWNER, REPO)
         } catch (e: HttpException) {
             return when (e.code()) {
-                404 -> UpdateStatus.Error("Repository ${config.owner}/${config.repo} not found.")
+                404 -> UpdateStatus.Error("Repository $OWNER/$REPO not found.")
                 // Anonymous calls are rate-limited per IP. Saying so beats a bare status code,
                 // since waiting is the whole remedy.
                 403, 429 -> UpdateStatus.Error("GitHub is rate-limiting this device. Try again later.")
@@ -101,9 +101,8 @@ class UpdateRepository(
         asset: GhAsset,
         onProgress: (bytesRead: Long, total: Long) -> Unit,
     ): Result<File> = withContext(Dispatchers.IO) {
-        val config = settings.updateSettings.first()
         val url = asset.browserDownloadUrl?.takeIf { it.isNotBlank() }
-            ?: "${GitHubApi.BASE_URL}repos/${config.owner}/${config.repo}/releases/assets/${asset.id}"
+            ?: "${GitHubApi.BASE_URL}repos/$OWNER/$REPO/releases/assets/${asset.id}"
 
         val request = Request.Builder()
             .url(url)
@@ -155,5 +154,15 @@ class UpdateRepository(
     private companion object {
         const val TAG = "UpdateRepository"
         const val DOWNLOAD_BUFFER = 64 * 1024
+
+        /**
+         * Where updates come from, fixed at build time.
+         *
+         * It was once editable in settings, from when the repository was private and someone
+         * might have been pointing a build at their own fork. A build that fetched code from
+         * a repository chosen at runtime is a strange thing to offer, and nothing needed it.
+         */
+        val OWNER: String = BuildConfig.GITHUB_OWNER
+        val REPO: String = BuildConfig.GITHUB_REPO
     }
 }

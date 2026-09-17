@@ -50,10 +50,7 @@ data class GoalsDraft(
 
 data class SettingsUiState(
     val goals: GoalsDraft = GoalsDraft(),
-    val update: UpdateSettings = UpdateSettings(
-        owner = BuildConfig.GITHUB_OWNER,
-        repo = BuildConfig.GITHUB_REPO,
-    ),
+    val update: UpdateSettings = UpdateSettings(),
     val canInstallPackages: Boolean = false,
     val status: UpdateStatus = UpdateStatus.Idle,
     val download: DownloadProgress? = null,
@@ -142,11 +139,6 @@ class SettingsViewModel(
             settings.setChannel(channel)
             checkForUpdates()
         }
-    }
-
-    fun setRepository(owner: String, repo: String) {
-        _state.update { it.copy(update = it.update.copy(owner = owner, repo = repo)) }
-        viewModelScope.launch { settings.setRepository(owner, repo) }
     }
 
     fun refreshInstallPermission() {

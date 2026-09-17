@@ -30,9 +30,7 @@ class AppContainer(context: Context) {
         Network.retrofit(GitHubApi.BASE_URL).create(GitHubApi::class.java)
     }
 
-    val settingsStore: SettingsStore by lazy {
-        SettingsStore(appContext, BuildConfig.GITHUB_OWNER, BuildConfig.GITHUB_REPO)
-    }
+    val settingsStore: SettingsStore by lazy { SettingsStore(appContext) }
 
     val foodRepository: FoodRepository by lazy {
         FoodRepository(database.foodDao(), offApi)
